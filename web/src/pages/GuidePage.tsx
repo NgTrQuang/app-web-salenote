@@ -20,7 +20,7 @@ export function GuidePage() {
       <div className="mb-8 overflow-hidden rounded-xl bg-gradient-to-br from-brand-600 to-brand-700 p-6 text-white shadow-md lg:p-8">
         <div className="flex items-start gap-5">
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-white/20 text-2xl font-bold">
-            S
+            <img src="/icons/logo.png" alt="Salenote" className="h-10 w-10" />
           </div>
           <div>
             <h2 className="text-xl font-bold">{APP_NAME}</h2>
