@@ -131,8 +131,8 @@ function SidebarBrand({ compact }: { compact?: boolean }) {
   return (
     <div className={`border-b border-slate-200 dark:border-slate-800 ${compact ? '' : 'px-5 py-5'}`}>
       <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-600 text-lg font-bold text-white">
-          <img src="/public/icons/logo.png" alt="Logo" className="h-10 w-10" />
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg">
+          <img src="/icons/logo.png" alt="Salenote" className="h-10 w-10" />
         </div>
         <div>
           <p className="font-bold text-slate-900 dark:text-white">{APP_NAME}</p>
