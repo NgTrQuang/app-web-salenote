@@ -1,0 +1,110 @@
+# ── Secrets & environment ─────────────────────────────────────
+.env
+.env.*
+!.env.example
+!.env*.example
+
+# ── OS ────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ── Editors & IDE ───────────────────────────────────────────
+.idea/
+*.iml
+*.ipr
+*.iws
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# VS Code — giữ file cấu hình dùng chung, bỏ cache cá nhân
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.json
+!.vscode/tasks.json
+
+# Cursor — không đẩy cache/agent local
+.cursor/
+
+# ── Logs ──────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ── Web (Salenote — Vite / Node) ──────────────────────────────
+web/node_modules/
+web/dist/
+web/.vite/
+web/coverage/
+web/.turbo/
+web/.eslintcache
+web/*.tsbuildinfo
+
+# ── Flutter app (Salenote mobile) ─────────────────────────────
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/.packages
+app/.pub-cache/
+app/.pub/
+app/build/
+app/**/doc/api/
+
+# Flutter symbols / obfuscation
+app/app.*.symbols
+app/app.*.map.json
+
+# Android build & signing (keystore không bao giờ commit)
+app/android/.gradle/
+app/android/local.properties
+app/android/**/GeneratedPluginRegistrant.java
+app/android/key.properties
+app/**/*.keystore
+app/**/*.jks
+app/**/*.apk
+app/**/*.aab
+
+# iOS / macOS build artifacts
+app/ios/Pods/
+app/ios/**/DerivedData/
+app/ios/**/xcuserdata/
+app/ios/Flutter/ephemeral/
+app/ios/Flutter/Generated.xcconfig
+app/ios/Flutter/flutter_export_environment.sh
+app/ios/Runner/GeneratedPluginRegistrant.*
+app/macos/Flutter/ephemeral/
+app/macos/Flutter/GeneratedPluginRegistrant.swift
+
+# ── Fallback (nếu chạy lệnh từ thư mục sai) ───────────────────
+node_modules/
+dist/
+build/
+coverage/
+
+# ── Test & cache ──────────────────────────────────────────────
+.nyc_output/
+.cache/
+*.tmp
+*.temp
+
+# ── Misc ──────────────────────────────────────────────────────
+*.class
+*.pyc
+.atom/
+.buildlog/
+.history/
+.svn/
+migrate_working_dir/
