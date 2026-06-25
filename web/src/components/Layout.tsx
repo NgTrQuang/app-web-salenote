@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { APP_NAME, APP_TAGLINE } from '@/lib/constants';
 import { useShell } from '@/contexts/ShellContext';
+import { useNotificationScheduler } from '@/hooks/useNotificationScheduler';
 
 const navItems = [
   { to: '/', icon: LayoutDashboard, label: 'Bảng điều khiển', end: true },
@@ -28,6 +29,7 @@ const navItems = [
 export function Layout() {
   const { mobileNavOpen, setMobileNavOpen } = useShell();
   const location = useLocation();
+  useNotificationScheduler();
   const hideQuickAdd =
     location.pathname.includes('/new') ||
     location.pathname.includes('/edit') ||

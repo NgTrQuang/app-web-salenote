@@ -8,6 +8,7 @@ import { addCustomer } from '@/lib/customerService';
 const initial: CustomerFormValues = {
   name: '',
   phone: '',
+  address: '',
   source: '',
   product_id: '',
   product: '',
@@ -34,6 +35,7 @@ export function AddCustomerPage() {
       const customer = await addCustomer({
         name: values.name,
         phone: values.phone || undefined,
+        address: values.address || undefined,
         source: values.source || null,
         product_id: values.product_id === '' ? null : values.product_id,
         product: values.product || undefined,

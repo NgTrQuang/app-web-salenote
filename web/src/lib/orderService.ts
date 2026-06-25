@@ -4,6 +4,7 @@ import type { Order, PaymentStatus, SalesSummary } from '@/types';
 import { followUpDelayMs, orderRevenue, summarizeOrders } from '@/types';
 import { sourceLabel } from './constants';
 import { deductStock, restoreStock } from './productService';
+import { snapshotShipping } from './shippingUtils';
 
 export interface CreateOrderInput {
   customer_id: number;
@@ -16,6 +17,9 @@ export interface CreateOrderInput {
   payment_status: PaymentStatus;
   paid_amount: number;
   note?: string;
+  shipping_name?: string;
+  shipping_phone?: string;
+  shipping_address?: string;
   markCustomerClosed?: boolean;
 }
 
@@ -25,6 +29,14 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
   let paid = input.paid_amount;
   if (input.payment_status === 'paid') paid = revenue;
   if (input.payment_status === 'unpaid') paid = 0;
+
+  const customer = await db.customers.get(input.customer_id);
+  if (!customer) throw new Error('Customer not found');
+  const shipping = snapshotShipping(customer, {
+    shipping_name: input.shipping_name,
+    shipping_phone: input.shipping_phone,
+    shipping_address: input.shipping_address,
+  });
 
   const order: Order = {
     customer_id: input.customer_id,
@@ -37,6 +49,7 @@ export async function createOrder(input: CreateOrderInput): Promise<Order> {
     payment_status: input.payment_status,
     paid_amount: paid,
     note: input.note?.trim() || null,
+    ...shipping,
     created_at: now,
   };
 
@@ -96,6 +109,75 @@ function formatOrderInteraction(o: Order): string {
 
 export async function getAllOrders(): Promise<Order[]> {
   return db.orders.orderBy('created_at').reverse().toArray();
+}
+
+export async function countOrders(): Promise<number> {
+  return db.orders.count();
+}
+
+export async function getOrdersPaged(page: number, pageSize: number): Promise<Order[]> {
+  const offset = (page - 1) * pageSize;
+  return db.orders.orderBy('created_at').reverse().offset(offset).limit(pageSize).toArray();
+}
+
+export async function updateOrderPayment(
+  orderId: number,
+  payment_status: PaymentStatus,
+  paid_amount: number,
+): Promise<Order> {
+  const order = await db.orders.get(orderId);
+  if (!order) throw new Error('Order not found');
+  if (order.payment_status === 'paid') throw new Error('Order already paid');
+
+  const revenue = orderRevenue(order);
+  let paid = paid_amount;
+  if (payment_status === 'paid') paid = revenue;
+  if (payment_status === 'unpaid') paid = 0;
+  if (payment_status === 'partial') paid = Math.min(Math.max(0, paid), revenue);
+
+  const now = Date.now();
+  const updated: Order = { ...order, payment_status, paid_amount: paid };
+
+  await db.transaction('rw', db.orders, db.interactions, async () => {
+    await db.orders.put(updated);
+    const paidLabel =
+      payment_status === 'paid'
+        ? 'đã thu đủ'
+        : payment_status === 'partial'
+          ? `đã thu ${paid.toLocaleString('vi-VN')}đ`
+          : 'chưa thu';
+    await db.interactions.add({
+      customer_id: order.customer_id,
+      content: `Cập nhật thanh toán đơn "${order.product_name}": ${paidLabel}`,
+      created_at: now,
+    });
+  });
+
+  return updated;
+}
+
+export interface UpdateOrderShippingInput {
+  shipping_name: string;
+  shipping_phone?: string | null;
+  shipping_address?: string | null;
+}
+
+export async function updateOrderShipping(
+  orderId: number,
+  shipping: UpdateOrderShippingInput,
+): Promise<Order> {
+  const order = await db.orders.get(orderId);
+  if (!order) throw new Error('Order not found');
+
+  const updated: Order = {
+    ...order,
+    shipping_name: shipping.shipping_name.trim(),
+    shipping_phone: shipping.shipping_phone?.trim() || null,
+    shipping_address: shipping.shipping_address?.trim() || null,
+  };
+
+  await db.orders.put(updated);
+  return updated;
 }
 
 export async function getOrdersByCustomer(customerId: number): Promise<Order[]> {
@@ -173,4 +255,22 @@ export async function getRevenueBySource(
       order_count: data.order_count,
     }))
     .sort((a, b) => b.revenue - a.revenue);
+}
+
+export async function getTopSalesProductsByRevenue(
+  start: number,
+  end: number,
+): Promise<{ product: string; revenue: number }[]> {
+  const orders = await getOrdersInRange(start, end);
+  if (orders.length === 0) return [];
+
+  const agg = new Map<string, number>();
+  for (const o of orders) {
+    agg.set(o.product_name, (agg.get(o.product_name) ?? 0) + orderRevenue(o));
+  }
+
+  return [...agg.entries()]
+    .map(([product, revenue]) => ({ product, revenue }))
+    .sort((a, b) => b.revenue - a.revenue)
+    .slice(0, 5);
 }

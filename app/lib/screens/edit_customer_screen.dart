@@ -19,6 +19,7 @@ class _EditCustomerScreenState extends State<EditCustomerScreen> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _nameCtrl;
   late final TextEditingController _phoneCtrl;
+  late final TextEditingController _addressCtrl;
   late final TextEditingController _noteCtrl;
   late final TextEditingController _productCtrl;
   late String _status;
@@ -33,6 +34,7 @@ class _EditCustomerScreenState extends State<EditCustomerScreen> {
     super.initState();
     _nameCtrl = TextEditingController(text: widget.customer.name);
     _phoneCtrl = TextEditingController(text: widget.customer.phone ?? '');
+    _addressCtrl = TextEditingController(text: widget.customer.address ?? '');
     _noteCtrl = TextEditingController(text: widget.customer.note ?? '');
     _productCtrl = TextEditingController(text: widget.customer.product ?? '');
     _status = widget.customer.status;
@@ -51,6 +53,7 @@ class _EditCustomerScreenState extends State<EditCustomerScreen> {
   void dispose() {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
+    _addressCtrl.dispose();
     _noteCtrl.dispose();
     _productCtrl.dispose();
     super.dispose();
@@ -72,6 +75,7 @@ class _EditCustomerScreenState extends State<EditCustomerScreen> {
       final updated = widget.customer.copyWith(
         name: _nameCtrl.text.trim(),
         phone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
+        address: _addressCtrl.text.trim().isEmpty ? null : _addressCtrl.text.trim(),
         note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
         product: _productCtrl.text.trim().isEmpty
             ? null
@@ -146,6 +150,18 @@ class _EditCustomerScreenState extends State<EditCustomerScreen> {
               ),
               keyboardType: TextInputType.phone,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              textInputAction: TextInputAction.next,
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _addressCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Địa chỉ giao hàng',
+                hintText: 'Số nhà, phường, quận, tỉnh...',
+                prefixIcon: Icon(Icons.location_on_outlined),
+                alignLabelWithHint: true,
+              ),
+              maxLines: 2,
               textInputAction: TextInputAction.next,
             ),
             const SizedBox(height: 14),

@@ -5,6 +5,8 @@ export interface Customer {
   id?: number;
   name: string;
   phone?: string | null;
+  /** Địa chỉ giao hàng */
+  address?: string | null;
   note?: string | null;
   /** Tên SP quan tâm (text hoặc sync từ danh mục) */
   product?: string | null;
@@ -55,6 +57,10 @@ export interface Order {
   payment_status: PaymentStatus;
   paid_amount: number;
   note?: string | null;
+  /** Snapshot người nhận lúc ghi đơn */
+  shipping_name?: string | null;
+  shipping_phone?: string | null;
+  shipping_address?: string | null;
   created_at: number;
 }
 

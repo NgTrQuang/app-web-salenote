@@ -8,6 +8,7 @@ import { FieldLabel, TextInput, TextArea } from './ui';
 export interface CustomerFormValues {
   name: string;
   phone: string;
+  address: string;
   source: string;
   product_id: number | '';
   product: string;
@@ -81,6 +82,19 @@ export function CustomerForm({ values, onChange }: CustomerFormProps) {
             ))}
           </select>
         </div>
+      </div>
+
+      <div>
+        <FieldLabel>Địa chỉ giao hàng</FieldLabel>
+        <TextArea
+          value={values.address}
+          onChange={(e) => set({ address: e.target.value })}
+          rows={2}
+          placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành..."
+        />
+        <p className="mt-1 text-xs text-slate-500">
+          Dùng sao chép nhanh khi tạo vận đơn GHN, GHTK, Viettel Post...
+        </p>
       </div>
 
       <div>

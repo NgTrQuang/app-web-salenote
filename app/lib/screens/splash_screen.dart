@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../database/database_helper.dart';
 import '../l10n/app_localizations.dart';
-import '../main.dart' show localeModeNotifier;
 import '../services/pin_service.dart';
 import '../utils/constants.dart';
+import '../widgets/app_logo.dart';
 import 'home_screen.dart';
 import 'pin_screen.dart';
 
@@ -92,8 +92,10 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
+
     return Scaffold(
-      backgroundColor: const Color(0xFF1565C0),
+      backgroundColor: AppLogo.brandTeal,
       body: AnnotatedRegion<SystemUiOverlayStyle>(
         value: const SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
@@ -108,9 +110,9 @@ class _SplashScreenState extends State<SplashScreen>
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Color(0xFF1565C0),
-                Color(0xFF0D47A1),
-                Color(0xFF1A237E),
+                AppLogo.brandTeal,
+                AppLogo.brandTealDark,
+                AppLogo.brandTealDeeper,
               ],
               stops: [0.0, 0.55, 1.0],
             ),
@@ -154,42 +156,28 @@ class _SplashScreenState extends State<SplashScreen>
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Container(
-                            width: 108,
-                            height: 108,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(28),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withAlpha(50),
-                                  blurRadius: 32,
-                                  offset: const Offset(0, 10),
-                                ),
-                                BoxShadow(
-                                  color: Colors.white.withAlpha(30),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, -2),
-                                ),
-                              ],
-                            ),
-                            child: Padding(
-                              padding: const EdgeInsets.all(10),
-                              child: Image.asset(
-                                'assets/images/logo.png',
-                                fit: BoxFit.contain,
-                                errorBuilder: (_, __, ___) => const Icon(
-                                  Icons.book_rounded,
-                                  color: Color(0xFF1565C0),
-                                  size: 54,
-                                ),
+                          AppLogo(
+                            size: 88,
+                            borderRadius: 22,
+                            padding: const EdgeInsets.all(10),
+                            backgroundColor: Colors.white,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withAlpha(50),
+                                blurRadius: 32,
+                                offset: const Offset(0, 10),
                               ),
-                            ),
+                              BoxShadow(
+                                color: Colors.white.withAlpha(30),
+                                blurRadius: 8,
+                                offset: const Offset(0, -2),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 24),
-                          const Text(
-                            'Sổ Khách',
-                            style: TextStyle(
+                          Text(
+                            l.appName,
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 32,
                               fontWeight: FontWeight.w800,
@@ -198,9 +186,10 @@ class _SplashScreenState extends State<SplashScreen>
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Công cụ hành động hàng ngày cho chủ shop',
+                            l.appTagline,
+                            textAlign: TextAlign.center,
                             style: TextStyle(
-                              color: Colors.white.withAlpha(180),
+                              color: Colors.white.withAlpha(200),
                               fontSize: 13,
                               fontWeight: FontWeight.w400,
                               letterSpacing: 0.2,
@@ -293,15 +282,14 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   @override
   Widget build(BuildContext context) {
     final l = AppLocalizations.of(context);
-    final size = MediaQuery.of(context).size;
 
     final slides = [
       _OnboardSlide(
         icon: Icons.people_alt_rounded,
-        iconColor: const Color(0xFF1565C0),
+        iconColor: AppLogo.brandTeal,
         title: l.onboard1Title,
         body: l.onboard1Body,
-        accentColor: const Color(0xFF1565C0),
+        accentColor: AppLogo.brandTeal,
       ),
       _OnboardSlide(
         icon: Icons.notifications_active_rounded,

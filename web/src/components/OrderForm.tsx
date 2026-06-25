@@ -6,6 +6,7 @@ import { createOrder } from '@/lib/orderService';
 import { formatMoney, formatMoneyInput, parseMoneyInput } from '@/lib/money';
 import { PAYMENT_LABELS } from '@/types';
 import { FieldLabel, PrimaryButton, SecondaryButton, TextInput, TextArea } from './ui';
+import { ProductPicker } from './ProductPicker';
 
 export interface OrderFormValues {
   product_id: number | '';
@@ -17,10 +18,13 @@ export interface OrderFormValues {
   payment_status: PaymentStatus;
   paid_amount: string;
   note: string;
+  shipping_name: string;
+  shipping_phone: string;
+  shipping_address: string;
   markCustomerClosed: boolean;
 }
 
-const initialValues: OrderFormValues = {
+const emptyValues = (): OrderFormValues => ({
   product_id: '',
   product_name: '',
   quantity: 1,
@@ -30,8 +34,19 @@ const initialValues: OrderFormValues = {
   payment_status: 'paid',
   paid_amount: '',
   note: '',
+  shipping_name: '',
+  shipping_phone: '',
+  shipping_address: '',
   markCustomerClosed: true,
-};
+});
+
+function shippingDefaults(customer: Customer): Pick<OrderFormValues, 'shipping_name' | 'shipping_phone' | 'shipping_address'> {
+  return {
+    shipping_name: customer.name,
+    shipping_phone: customer.phone ?? '',
+    shipping_address: customer.address ?? '',
+  };
+}
 
 interface OrderFormProps {
   customer: Customer;
@@ -41,7 +56,10 @@ interface OrderFormProps {
 
 export function OrderForm({ customer, onSuccess, onCancel }: OrderFormProps) {
   const [products, setProducts] = useState<Product[]>([]);
-  const [values, setValues] = useState<OrderFormValues>(initialValues);
+  const [values, setValues] = useState<OrderFormValues>(() => ({
+    ...emptyValues(),
+    ...shippingDefaults(customer),
+  }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -56,7 +74,8 @@ export function OrderForm({ customer, onSuccess, onCancel }: OrderFormProps) {
       if (linked) {
         const d = applyProductDefaults(linked, 1);
         setValues({
-          ...initialValues,
+          ...emptyValues(),
+          ...shippingDefaults(customer),
           product_id: customer.product_id,
           product_name: d.product_name,
           unit_sell_price: formatMoneyInput(d.unit_sell_price),
@@ -69,7 +88,7 @@ export function OrderForm({ customer, onSuccess, onCancel }: OrderFormProps) {
     if (customer.product) {
       setValues((v) => ({ ...v, product_name: customer.product ?? '' }));
     }
-  }, [customer.id, customer.product_id, customer.product, products]);
+  }, [customer.id, customer.name, customer.phone, customer.address, customer.product_id, customer.product, products]);
 
   const qty = values.quantity || 1;
   const sell = parseMoneyInput(values.unit_sell_price);
@@ -78,7 +97,12 @@ export function OrderForm({ customer, onSuccess, onCancel }: OrderFormProps) {
   const revenue = qty * sell;
   const profit = qty * (sell - cost);
   const commission = qty * comm;
-  const paid = values.payment_status === 'paid' ? revenue : parseMoneyInput(values.paid_amount);
+  const paid =
+    values.payment_status === 'paid'
+      ? revenue
+      : values.payment_status === 'unpaid'
+        ? 0
+        : parseMoneyInput(values.paid_amount);
   const debt = Math.max(0, revenue - paid);
 
   const selectedProduct =
@@ -138,6 +162,9 @@ export function OrderForm({ customer, onSuccess, onCancel }: OrderFormProps) {
         payment_status: values.payment_status,
         paid_amount: paid,
         note: values.note || undefined,
+        shipping_name: values.shipping_name,
+        shipping_phone: values.shipping_phone,
+        shipping_address: values.shipping_address,
         markCustomerClosed: values.markCustomerClosed,
       });
       onSuccess();
@@ -157,24 +184,50 @@ export function OrderForm({ customer, onSuccess, onCancel }: OrderFormProps) {
           </p>
         </div>
 
+        <div className="sm:col-span-2 rounded-lg border border-slate-200 p-4 dark:border-slate-700">
+          <p className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">
+            Thông tin giao hàng
+          </p>
+          <p className="mb-3 text-xs text-slate-500">
+            Mặc định lấy từ hồ sơ khách — có thể sửa cho đơn này. Địa chỉ sẽ được lưu cố định trên đơn.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <FieldLabel>Người nhận</FieldLabel>
+              <TextInput
+                value={values.shipping_name}
+                onChange={(e) => set({ shipping_name: e.target.value })}
+                placeholder="Tên người nhận"
+              />
+            </div>
+            <div>
+              <FieldLabel>SĐT giao hàng</FieldLabel>
+              <TextInput
+                value={values.shipping_phone}
+                onChange={(e) => set({ shipping_phone: e.target.value })}
+                placeholder="0901234567"
+                inputMode="tel"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <FieldLabel>Địa chỉ giao hàng</FieldLabel>
+              <TextArea
+                value={values.shipping_address}
+                onChange={(e) => set({ shipping_address: e.target.value })}
+                rows={2}
+                placeholder="Số nhà, phường, quận, tỉnh..."
+              />
+            </div>
+          </div>
+        </div>
+
         {products.length > 0 && (
           <div className="sm:col-span-2">
-            <FieldLabel>Chọn từ danh mục</FieldLabel>
-            <select
+            <ProductPicker
+              products={products}
               value={values.product_id}
-              onChange={(e) =>
-                selectProduct(e.target.value === '' ? '' : Number(e.target.value))
-              }
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900"
-            >
-              <option value="">— Nhập tay —</option>
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({formatMoney(p.default_sell_price)})
-                  {p.track_inventory ? ` · kho: ${p.stock_quantity}` : ''}
-                </option>
-              ))}
-            </select>
+              onChange={(id) => selectProduct(id)}
+            />
             {selectedProduct?.track_inventory && (
               <p
                 className={`mt-1.5 text-xs ${
@@ -200,6 +253,7 @@ export function OrderForm({ customer, onSuccess, onCancel }: OrderFormProps) {
             value={values.product_name}
             onChange={(e) => set({ product_name: e.target.value, product_id: '' })}
             placeholder="Tên sản phẩm trên đơn"
+            className="overflow-x-auto"
             required
           />
         </div>
@@ -299,10 +353,10 @@ export function OrderForm({ customer, onSuccess, onCancel }: OrderFormProps) {
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3 rounded-lg bg-brand-50 p-4 text-sm dark:bg-brand-950/30 sm:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-4 text-sm dark:bg-slate-800/60 sm:grid-cols-4">
         <div>
           <p className="text-slate-500">Doanh thu</p>
-          <p className="font-bold text-slate-900 dark:text-white">{formatMoney(revenue)}</p>
+          <p className="font-bold text-brand-700 dark:text-brand-400">{formatMoney(revenue)}</p>
         </div>
         <div>
           <p className="text-slate-500">Lợi nhuận</p>
@@ -314,7 +368,9 @@ export function OrderForm({ customer, onSuccess, onCancel }: OrderFormProps) {
         </div>
         <div>
           <p className="text-slate-500">Công nợ</p>
-          <p className={`font-bold ${debt > 0 ? 'text-red-600' : 'text-slate-600'}`}>
+          <p
+            className={`font-bold ${debt > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-600 dark:text-slate-300'}`}
+          >
             {formatMoney(debt)}
           </p>
         </div>

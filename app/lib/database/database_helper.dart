@@ -24,7 +24,7 @@ class DatabaseHelper {
     final path = join(dbPath, 'so_khach.db');
     return await openDatabase(
       path,
-      version: 4,
+      version: 6,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -72,6 +72,21 @@ class DatabaseHelper {
         )
       ''');
     }
+    if (oldVersion < 5) {
+      await db.execute('ALTER TABLE customers ADD COLUMN address TEXT');
+    }
+    if (oldVersion < 6) {
+      await db.execute('ALTER TABLE orders ADD COLUMN shipping_name TEXT');
+      await db.execute('ALTER TABLE orders ADD COLUMN shipping_phone TEXT');
+      await db.execute('ALTER TABLE orders ADD COLUMN shipping_address TEXT');
+      await db.execute('''
+        UPDATE orders SET
+          shipping_name = (SELECT name FROM customers WHERE customers.id = orders.customer_id),
+          shipping_phone = (SELECT phone FROM customers WHERE customers.id = orders.customer_id),
+          shipping_address = (SELECT address FROM customers WHERE customers.id = orders.customer_id)
+        WHERE shipping_name IS NULL
+      ''');
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -80,6 +95,7 @@ class DatabaseHelper {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
         phone TEXT,
+        address TEXT,
         note TEXT,
         product TEXT,
         product_id INTEGER,
@@ -127,6 +143,9 @@ class DatabaseHelper {
         payment_status TEXT NOT NULL,
         paid_amount REAL NOT NULL,
         note TEXT,
+        shipping_name TEXT,
+        shipping_phone TEXT,
+        shipping_address TEXT,
         created_at INTEGER NOT NULL
       )
     ''');
@@ -169,6 +188,36 @@ class DatabaseHelper {
       orderBy: 'next_action_at ASC',
     );
     return rows.map(Customer.fromMap).toList();
+  }
+
+  /// Khách warm/hot chưa liên hệ ≥7 ngày — cơ hội gửi ưu đãi.
+  Future<int> countPromoCandidates({int staleDays = 7}) async {
+    final db = await database;
+    final cutoff = DateTime.now()
+        .subtract(Duration(days: staleDays))
+        .millisecondsSinceEpoch;
+    final rows = await db.rawQuery(
+      "SELECT COUNT(*) as cnt FROM customers "
+      "WHERE status IN ('warm', 'hot') "
+      "AND (last_contact_at IS NULL OR last_contact_at < ?)",
+      [cutoff],
+    );
+    return Sqflite.firstIntValue(rows) ?? 0;
+  }
+
+  /// Khách đã chốt, lâu chưa liên hệ — gợi ý quà tri ân.
+  Future<int> countLoyaltyCustomers({int staleDays = 30}) async {
+    final db = await database;
+    final cutoff = DateTime.now()
+        .subtract(Duration(days: staleDays))
+        .millisecondsSinceEpoch;
+    final rows = await db.rawQuery(
+      "SELECT COUNT(*) as cnt FROM customers "
+      "WHERE status = 'closed' "
+      "AND (last_contact_at IS NULL OR last_contact_at < ?)",
+      [cutoff],
+    );
+    return Sqflite.firstIntValue(rows) ?? 0;
   }
 
   Future<List<Map<String, dynamic>>> getCustomersNeedingAttention() async {
@@ -287,6 +336,33 @@ class DatabaseHelper {
     final db = await database;
     final rows = await db.query('orders', orderBy: 'created_at DESC');
     return rows.map(Order.fromMap).toList();
+  }
+
+  Future<int> countOrders() async {
+    final db = await database;
+    final r = await db.rawQuery('SELECT COUNT(*) as c FROM orders');
+    return (r.first['c'] as int?) ?? 0;
+  }
+
+  Future<List<Order>> getOrdersPaged({required int limit, required int offset}) async {
+    final db = await database;
+    final rows = await db.query(
+      'orders',
+      orderBy: 'created_at DESC',
+      limit: limit,
+      offset: offset,
+    );
+    return rows.map(Order.fromMap).toList();
+  }
+
+  Future<void> updateOrderPayment(int id, String paymentStatus, double paidAmount) async {
+    final db = await database;
+    await db.update(
+      'orders',
+      {'payment_status': paymentStatus, 'paid_amount': paidAmount},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 
   Future<List<Order>> getOrdersByCustomer(int customerId) async {

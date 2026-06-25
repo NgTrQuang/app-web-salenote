@@ -10,7 +10,12 @@ import '../services/order_service.dart';
 import '../utils/constants.dart';
 import '../utils/date_utils.dart';
 import '../utils/money.dart';
+import '../services/insights_service.dart';
+import '../widgets/insights_panels.dart';
 import '../widgets/order_form_sheet.dart';
+import '../widgets/order_payment_sheet.dart';
+import '../widgets/bill_preview_sheet.dart';
+import '../utils/shipping_utils.dart';
 import '../widgets/status_badge.dart';
 import 'edit_customer_screen.dart';
 
@@ -198,6 +203,10 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
             ),
             if (_orders.isNotEmpty) ...[
               const SizedBox(height: 20),
+              CustomerIntelligenceCard(
+                intel: InsightsService().buildCustomerIntelligence(_customer, _orders),
+              ),
+              const SizedBox(height: 12),
               Text('Đơn hàng (${_orders.length})',
                   style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
               const SizedBox(height: 8),
@@ -222,12 +231,15 @@ class _CustomerDetailScreenState extends State<CustomerDetailScreen> {
                         ],
                       ),
                       const Divider(height: 16),
-                      ..._orders.take(5).map((o) => ListTile(
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            title: Text('${o.productName} × ${o.quantity}'),
-                            subtitle: Text(AppConstants.paymentLabels[o.paymentStatus] ?? o.paymentStatus),
-                            trailing: Text(formatMoney(o.revenue)),
+                      ..._orders.take(5).map((o) => _OrderRow(
+                            order: o,
+                            customer: _customer,
+                            onTap: () => OrderPaymentSheet.show(
+                              context,
+                              order: o,
+                              customer: _customer,
+                              onSaved: _loadOrders,
+                            ),
                           )),
                     ],
                   ),
@@ -380,6 +392,86 @@ class _ProfileCard extends StatelessWidget {
                       ],
                     ),
                   ],
+                  if (customer.address != null && customer.address!.trim().isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.location_on_outlined,
+                            size: 14, color: Colors.grey.shade500),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            customer.address!,
+                            style: TextStyle(
+                                fontSize: 13, color: Colors.grey.shade700),
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Sao chép địa chỉ',
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                          onPressed: () {
+                            Clipboard.setData(
+                                ClipboardData(text: customer.address!.trim()));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Đã sao chép địa chỉ'),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          },
+                          icon: Icon(Icons.copy_rounded,
+                              size: 16, color: theme.colorScheme.primary),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (customer.source != null &&
+                      customer.source!.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(Icons.campaign_outlined,
+                            size: 14, color: Colors.grey.shade500),
+                        const SizedBox(width: 4),
+                        Text(
+                          AppConstants.sourceLabel(customer.source),
+                          style: TextStyle(
+                              fontSize: 13, color: Colors.grey.shade700),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (customer.warrantyEndDate != null) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Icon(Icons.verified_outlined,
+                            size: 14,
+                            color: customer.warrantyExpiringSoon
+                                ? Colors.orange.shade700
+                                : Colors.grey.shade500),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            'Bảo hành đến ${AppDateUtils.formatDate(customer.warrantyEndDate!)}'
+                            '${customer.warrantyDaysLeft != null ? ' (còn ${customer.warrantyDaysLeft} ngày)' : ''}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: customer.warrantyExpiringSoon
+                                  ? Colors.orange.shade800
+                                  : Colors.grey.shade700,
+                              fontWeight: customer.warrantyExpiringSoon
+                                  ? FontWeight.w600
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   if (customer.product != null &&
                       customer.product!.isNotEmpty) ...[
                     const SizedBox(height: 6),
@@ -436,6 +528,57 @@ class _ProfileCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _OrderRow extends StatelessWidget {
+  final Order order;
+  final Customer customer;
+  final VoidCallback onTap;
+
+  const _OrderRow({
+    required this.order,
+    required this.customer,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        ListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          title: Text('${order.productName} × ${order.quantity}'),
+          subtitle: Text(AppConstants.paymentLabels[order.paymentStatus] ?? order.paymentStatus),
+          trailing: Text(formatMoney(order.revenue)),
+          onTap: onTap,
+        ),
+        Row(
+          children: [
+            TextButton.icon(
+              onPressed: () async {
+                await Clipboard.setData(
+                    ClipboardData(text: formatShippingInfo(customer, order)));
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Đã sao chép thông tin giao hàng')),
+                  );
+                }
+              },
+              icon: const Icon(Icons.local_shipping_outlined, size: 16),
+              label: const Text('Copy ship', style: TextStyle(fontSize: 12)),
+            ),
+            TextButton.icon(
+              onPressed: () => BillPreviewSheet.show(context, customer: customer, order: order),
+              icon: const Icon(Icons.receipt_long_outlined, size: 16),
+              label: const Text('Bill', style: TextStyle(fontSize: 12)),
+            ),
+          ],
+        ),
+        const Divider(height: 8),
+      ],
     );
   }
 }

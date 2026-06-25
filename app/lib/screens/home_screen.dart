@@ -9,12 +9,17 @@ import '../services/customer_service.dart';
 import '../services/order_service.dart';
 import '../services/product_service.dart';
 import '../utils/constants.dart';
+import '../utils/money.dart';
 import '../widgets/customer_card.dart';
+import '../services/insights_service.dart';
+import '../widgets/insights_panels.dart';
 import '../widgets/sales_dashboard.dart';
+import '../widgets/app_drawer.dart';
+import '../widgets/app_logo.dart';
 import 'add_customer_screen.dart';
+import 'add_order_screen.dart';
 import 'all_customers_screen.dart';
 import 'customer_detail_screen.dart';
-import 'orders_screen.dart';
 import 'products_screen.dart';
 import 'settings_screen.dart';
 import 'stats_screen.dart';
@@ -39,6 +44,12 @@ class _HomeScreenState extends State<HomeScreen> {
   SalesSummary _todaySales = const SalesSummary();
   SalesSummary _monthSales = const SalesSummary();
   List<Product> _lowStock = [];
+  List<DailyAction> _dailyActions = [];
+  AtRiskSummary _atRisk = const AtRiskSummary();
+  AchievementStats _achievements = const AchievementStats();
+  List<RevenueInsight> _revenueInsights = [];
+  bool _showSalesDetail = false;
+  final _insights = InsightsService();
   int _navIndex = 0;
   bool _showSwipeHint = false;
   bool _fabExtended = true;
@@ -87,6 +98,10 @@ class _HomeScreenState extends State<HomeScreen> {
       orderService.getSalesSummaryForDay(),
       orderService.getSalesSummaryForMonth(),
       productService.getLowStockProducts(),
+      _insights.getDailyActions(),
+      _insights.getAtRiskSummary(),
+      _insights.getAchievementStats(),
+      _insights.getRevenueInsights(),
     ]);
     if (mounted) {
       _needsAttention = results[0] as List<Customer>;
@@ -98,6 +113,10 @@ class _HomeScreenState extends State<HomeScreen> {
       _todaySales = results[6] as SalesSummary;
       _monthSales = results[7] as SalesSummary;
       _lowStock = results[8] as List<Product>;
+      _dailyActions = results[9] as List<DailyAction>;
+      _atRisk = results[10] as AtRiskSummary;
+      _achievements = results[11] as AchievementStats;
+      _revenueInsights = results[12] as List<RevenueInsight>;
       final today = DateTime.now();
       final todayStr = '${today.year}-${today.month}-${today.day}';
       final tip = tipDate != todayStr ? _pickTip(todayStr) : null;
@@ -342,8 +361,11 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       child: Scaffold(
         backgroundColor: bg,
+        drawer: const AppDrawer(current: 'home'),
         // ── Bottom Navigation Bar ────────────────────────────
-        bottomNavigationBar: Container(
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Container(
           decoration: BoxDecoration(
             border: Border(
               top: BorderSide(
@@ -393,6 +415,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
         ),
+        ),
         // ── FAB ─────────────────────────────────────────────
         floatingActionButton: AnimatedSwitcher(
           duration: const Duration(milliseconds: 220),
@@ -435,25 +458,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       toolbarHeight: 56,
                       title: Row(
                         children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: Image.asset(
-                              'assets/images/logo.png',
-                              width: 30,
-                              height: 30,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Container(
-                                width: 30,
-                                height: 30,
-                                decoration: BoxDecoration(
-                                  color: theme.colorScheme.primary,
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: const Icon(Icons.book_rounded,
-                                    color: Colors.white, size: 16),
-                              ),
-                            ),
+                          IconButton(
+                            icon: const Icon(Icons.menu_rounded),
+                            onPressed: () => Scaffold.of(context).openDrawer(),
+                            tooltip: 'Menu',
                           ),
+                          const AppLogo(size: 30, borderRadius: 8),
                           const SizedBox(width: 10),
                           Text(l.appName,
                               style: const TextStyle(
@@ -491,23 +501,13 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ],
                           const Spacer(),
-                          PopupMenuButton<String>(
-                            icon: const Icon(Icons.more_horiz_rounded),
-                            onSelected: (v) {
-                              if (v == 'products') {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(builder: (_) => const ProductsScreen()),
-                                ).then((_) => _load());
-                              } else if (v == 'orders') {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(builder: (_) => const OrdersScreen()),
-                                ).then((_) => _load());
-                              }
-                            },
-                            itemBuilder: (_) => const [
-                              PopupMenuItem(value: 'products', child: Text('Sản phẩm')),
-                              PopupMenuItem(value: 'orders', child: Text('Đơn hàng')),
-                            ],
+                          IconButton(
+                            icon: const Icon(Icons.receipt_long_outlined),
+                            tooltip: 'Ghi đơn mới',
+                            onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                  builder: (_) => const AddOrderScreen()),
+                            ),
                           ),
                         ],
                       ),
@@ -557,13 +557,63 @@ class _HomeScreenState extends State<HomeScreen> {
                         SliverToBoxAdapter(
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                            child: SalesDashboard(title: 'Hôm nay', summary: _todaySales),
+                            child: DailyActionCenter(actions: _dailyActions),
                           ),
                         ),
                         SliverToBoxAdapter(
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                            child: SalesDashboard(title: 'Tháng này', summary: _monthSales),
+                            child: AchievementBanner(stats: _achievements),
+                          ),
+                        ),
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                            child: AtRiskAlertsPanel(summary: _atRisk),
+                          ),
+                        ),
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                            child: RevenueInsightPanel(insights: _revenueInsights),
+                          ),
+                        ),
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                            child: Card(
+                              child: Column(
+                                children: [
+                                  ListTile(
+                                    title: const Text('Doanh số',
+                                        style: TextStyle(fontWeight: FontWeight.w600)),
+                                    subtitle: Text(
+                                      'Hôm nay ${formatMoney(_todaySales.revenue)} · Tháng ${formatMoney(_monthSales.revenue)}',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                    trailing: Icon(
+                                      _showSalesDetail
+                                          ? Icons.expand_less
+                                          : Icons.expand_more,
+                                    ),
+                                    onTap: () =>
+                                        setState(() => _showSalesDetail = !_showSalesDetail),
+                                  ),
+                                  if (_showSalesDetail) ...[
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                                      child: SalesDashboard(
+                                          title: 'Hôm nay', summary: _todaySales),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                                      child: SalesDashboard(
+                                          title: 'Tháng này', summary: _monthSales),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                         if (_lowStock.isNotEmpty)
@@ -571,34 +621,49 @@ class _HomeScreenState extends State<HomeScreen> {
                             child: Padding(
                               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                               child: Card(
-                                child: Padding(
-                                  padding: const EdgeInsets.all(14),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text('Cảnh báo tồn kho (${_lowStock.length})',
-                                          style: const TextStyle(fontWeight: FontWeight.w700)),
-                                      const SizedBox(height: 8),
-                                      ..._lowStock.take(4).map((p) => Padding(
-                                            padding: const EdgeInsets.only(bottom: 6),
-                                            child: Row(
-                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                              children: [
-                                                Expanded(child: Text(p.name, overflow: TextOverflow.ellipsis)),
-                                                Text(
-                                                  '${p.stockQuantity} · ${AppConstants.stockStatusLabel(p.stockStatus)}',
-                                                  style: TextStyle(
-                                                    fontSize: 12,
-                                                    color: p.stockStatus == 'out'
-                                                        ? Colors.red
-                                                        : Colors.orange,
-                                                    fontWeight: FontWeight.w600,
+                                child: InkWell(
+                                  onTap: () => Navigator.of(context)
+                                      .push(MaterialPageRoute(
+                                          builder: (_) => const ProductsScreen()))
+                                      .then((_) => _load()),
+                                  borderRadius: BorderRadius.circular(16),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(14),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text('Cảnh báo tồn kho (${_lowStock.length})',
+                                            style: const TextStyle(fontWeight: FontWeight.w700)),
+                                        const SizedBox(height: 8),
+                                        ..._lowStock.take(4).map((p) => Padding(
+                                              padding: const EdgeInsets.only(bottom: 6),
+                                              child: Row(
+                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                children: [
+                                                  Expanded(
+                                                      child: Text(p.name,
+                                                          overflow: TextOverflow.ellipsis)),
+                                                  Text(
+                                                    '${p.stockQuantity} · ${AppConstants.stockStatusLabel(p.stockStatus)}',
+                                                    style: TextStyle(
+                                                      fontSize: 12,
+                                                      color: p.stockStatus == 'out'
+                                                          ? Colors.red
+                                                          : Colors.orange,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
                                                   ),
-                                                ),
-                                              ],
-                                            ),
-                                          )),
-                                    ],
+                                                ],
+                                              ),
+                                            )),
+                                        const SizedBox(height: 4),
+                                        Text('Quản lý tồn kho →',
+                                            style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                                color: theme.colorScheme.primary)),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),

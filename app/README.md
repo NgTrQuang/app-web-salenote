@@ -4,7 +4,7 @@
 
 Sổ Khách là ứng dụng di động dành cho chủ shop / bán hàng nhỏ lẻ giúp **nhớ khách, biết khi nào cần liên hệ lại, và không bỏ lỡ đơn hàng**. Hoàn toàn offline, không cần tài khoản, không cần internet.
 
-**Phiên bản hiện tại: 2.2.0**
+**Phiên bản hiện tại: 2.3.0** (Android targetSdk **36**, hỗ trợ **16 KB page size** — xem [`ANDROID_BUILD.md`](ANDROID_BUILD.md))
 
 ---
 

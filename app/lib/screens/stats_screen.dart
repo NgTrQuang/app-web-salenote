@@ -5,7 +5,9 @@ import '../main.dart' show localeModeNotifier;
 import '../models/order.dart';
 import '../services/customer_service.dart';
 import '../services/order_service.dart';
-import '../widgets/sales_dashboard.dart';
+import '../services/insights_service.dart';
+import '../widgets/insights_panels.dart';
+import '../widgets/app_drawer.dart';
 import '../utils/money.dart';
 
 class StatsScreen extends StatefulWidget {
@@ -22,7 +24,10 @@ class _StatsScreenState extends State<StatsScreen> {
   Map<String, dynamic>? _stats;
   SalesSummary? _salesSummary;
   List<Map<String, dynamic>> _revenueBySource = [];
+  List<Map<String, dynamic>> _topSalesProducts = [];
+  List<RevenueInsight> _revenueInsights = [];
   int _streak = 0;
+  final _insights = InsightsService();
   bool _loading = true;
 
   @override
@@ -44,6 +49,11 @@ class _StatsScreenState extends State<StatsScreen> {
         start.millisecondsSinceEpoch,
         end.millisecondsSinceEpoch,
       ),
+      _orderService.getTopSalesProductsByRevenue(
+        start.millisecondsSinceEpoch,
+        end.millisecondsSinceEpoch,
+      ),
+      _insights.getRevenueInsights(_selectedMonth),
     ]);
     if (mounted) {
       setState(() {
@@ -51,6 +61,8 @@ class _StatsScreenState extends State<StatsScreen> {
         _streak = results[1] as int;
         _salesSummary = results[2] as SalesSummary;
         _revenueBySource = List<Map<String, dynamic>>.from(results[3] as List);
+        _topSalesProducts = List<Map<String, dynamic>>.from(results[4] as List);
+        _revenueInsights = results[5] as List<RevenueInsight>;
         _loading = false;
       });
     }
@@ -92,6 +104,7 @@ class _StatsScreenState extends State<StatsScreen> {
 
     return Scaffold(
       backgroundColor: bg,
+      drawer: const AppDrawer(current: 'stats'),
       appBar: AppBar(
         backgroundColor: bg,
         scrolledUnderElevation: 0,
@@ -120,11 +133,19 @@ class _StatsScreenState extends State<StatsScreen> {
                   ),
                   const SizedBox(height: 16),
 
+                  RevenueInsightPanel(insights: _revenueInsights),
+                  const SizedBox(height: 16),
+
                   if (_salesSummary != null) ...[
                     SalesDashboard(
                       title: 'Doanh số — $monthLabel',
                       summary: _salesSummary!,
                     ),
+                    const SizedBox(height: 20),
+                  ],
+
+                  if (_topSalesProducts.isNotEmpty) ...[
+                    _TopSalesProductsCard(rows: _topSalesProducts),
                     const SizedBox(height: 20),
                   ],
 
@@ -135,7 +156,7 @@ class _StatsScreenState extends State<StatsScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Doanh thu theo nguồn',
+                            const Text('Doanh thu theo nguồn khách',
                                 style: TextStyle(fontWeight: FontWeight.w700)),
                             const SizedBox(height: 12),
                             ..._revenueBySource.map((row) => Padding(
@@ -631,5 +652,82 @@ class _TopProductsCard extends StatelessWidget {
       Color(0xFF81C784),
     ];
     return idx < colors.length ? colors[idx] : Colors.blue.shade300;
+  }
+}
+
+// ── Top Sales Products (from real orders) ─────────────────────
+
+class _TopSalesProductsCard extends StatelessWidget {
+  final List<Map<String, dynamic>> rows;
+  const _TopSalesProductsCard({required this.rows});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final maxRev = (rows.first['revenue'] as num).toDouble();
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: theme.colorScheme.outlineVariant.withAlpha(80)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Text('💰', style: TextStyle(fontSize: 18)),
+              SizedBox(width: 8),
+              Text('Top doanh thu theo sản phẩm (đơn thực)',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+            ],
+          ),
+          const SizedBox(height: 14),
+          ...rows.asMap().entries.map((entry) {
+            final row = entry.value;
+            final name = row['product'] as String;
+            final rev = (row['revenue'] as num).toDouble();
+            final ratio = maxRev > 0 ? rev / maxRev : 0.0;
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(name,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w600, fontSize: 13)),
+                      ),
+                      Text(formatMoney(rev),
+                          style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: theme.colorScheme.primary,
+                              fontSize: 13)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: ratio,
+                      minHeight: 6,
+                      backgroundColor: theme.colorScheme.surfaceVariant,
+                      valueColor: AlwaysStoppedAnimation(
+                          theme.colorScheme.primary),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
   }
 }

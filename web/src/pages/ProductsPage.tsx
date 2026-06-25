@@ -47,6 +47,11 @@ export function ProductsPage() {
     setTimeout(() => setToast(''), 2500);
   }
 
+  async function reloadProducts() {
+    const list = await getAllProducts();
+    setProducts(list);
+  }
+
   function openAdd() {
     setEditing(null);
     setModalOpen(true);
@@ -60,11 +65,13 @@ export function ProductsPage() {
   async function handleDelete(p: Product) {
     if (!p.id || !confirm(`Xoá sản phẩm "${p.name}"?`)) return;
     await deleteProduct(p.id);
+    await reloadProducts();
     showToast('Đã xoá sản phẩm');
   }
 
   async function handleToggle(p: Product) {
     await toggleProductActive(p);
+    await reloadProducts();
     showToast(p.active ? 'Đã ẩn sản phẩm' : 'Đã kích hoạt sản phẩm');
   }
 
@@ -138,8 +145,9 @@ export function ProductsPage() {
           key={editing?.id ?? 'new'}
           product={editing}
           onClose={() => setModalOpen(false)}
-          onSaved={(wasEdit) => {
+          onSaved={async (wasEdit) => {
             setModalOpen(false);
+            await reloadProducts();
             showToast(wasEdit ? 'Đã cập nhật sản phẩm' : 'Đã thêm sản phẩm');
           }}
         />

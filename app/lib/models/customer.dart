@@ -5,6 +5,7 @@ class Customer {
   final int? id;
   final String name;
   final String? phone;
+  final String? address;
   final String? note;
   final String? product;
   final int? productId;
@@ -19,6 +20,7 @@ class Customer {
     this.id,
     required this.name,
     this.phone,
+    this.address,
     this.note,
     this.product,
     this.productId,
@@ -35,6 +37,7 @@ class Customer {
       id: map['id'] as int?,
       name: map['name'] as String,
       phone: map['phone'] as String?,
+      address: map['address'] as String?,
       note: map['note'] as String?,
       product: map['product'] as String?,
       productId: map['product_id'] as int?,
@@ -52,6 +55,7 @@ class Customer {
       if (id != null) 'id': id,
       'name': name,
       'phone': phone,
+      'address': address,
       'note': note,
       'product': product,
       'product_id': productId,
@@ -68,6 +72,7 @@ class Customer {
     int? id,
     String? name,
     Object? phone = _absent,
+    Object? address = _absent,
     Object? note = _absent,
     Object? product = _absent,
     Object? productId = _absent,
@@ -82,6 +87,7 @@ class Customer {
       id: id ?? this.id,
       name: name ?? this.name,
       phone: phone == _absent ? this.phone : phone as String?,
+      address: address == _absent ? this.address : address as String?,
       note: note == _absent ? this.note : note as String?,
       product: product == _absent ? this.product : product as String?,
       productId: productId == _absent ? this.productId : productId as int?,

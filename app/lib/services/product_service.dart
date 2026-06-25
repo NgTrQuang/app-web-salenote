@@ -43,7 +43,17 @@ class ProductService {
   Future<void> deleteProduct(int id) => _db.deleteProduct(id);
 
   Future<void> toggleActive(Product product) async {
-    await updateProduct(product.copyWith(active: !product.active));
+    final nextActive = !product.active;
+    await updateProduct(product.copyWith(active: nextActive));
+    if (!nextActive && product.id != null) {
+      final db = await _db.database;
+      await db.update(
+        'customers',
+        {'product_id': null},
+        where: 'product_id = ?',
+        whereArgs: [product.id],
+      );
+    }
   }
 
   Future<List<Product>> getLowStockProducts() async {

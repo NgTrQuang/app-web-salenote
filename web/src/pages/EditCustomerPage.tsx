@@ -10,6 +10,7 @@ function toForm(c: Customer): CustomerFormValues {
   return {
     name: c.name,
     phone: c.phone ?? '',
+    address: c.address ?? '',
     source: c.source ?? '',
     product_id: c.product_id ?? '',
     product: c.product ?? '',
@@ -46,6 +47,7 @@ export function EditCustomerPage() {
       ...original,
       name: values.name.trim(),
       phone: values.phone.trim() || null,
+      address: values.address.trim() || null,
       source: values.source || null,
       product_id: values.product_id === '' ? null : values.product_id,
       product: values.product.trim() || null,

@@ -23,12 +23,15 @@ export function useDataRefresh(): number {
       for (const p of products) {
         h +=
           (p.id ?? 0) +
+          p.name.length +
+          (p.note?.length ?? 0) +
           p.cost_price +
           p.default_sell_price +
           p.default_commission +
           (p.active ? 1 : 0) +
           (p.track_inventory ? 100 : 0) +
-          (p.stock_quantity ?? 0);
+          (p.stock_quantity ?? 0) +
+          (p.low_stock_threshold ?? 0);
       }
       for (const o of orders) {
         h += (o.id ?? 0) + o.created_at + o.quantity;

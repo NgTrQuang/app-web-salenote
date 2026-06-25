@@ -7,6 +7,7 @@ import { monthRange } from './dateUtils';
 export async function addCustomer(input: {
   name: string;
   phone?: string;
+  address?: string;
   note?: string;
   product?: string;
   product_id?: number | null;
@@ -19,6 +20,7 @@ export async function addCustomer(input: {
   const customer: Customer = {
     name: input.name.trim(),
     phone: input.phone?.trim() || null,
+    address: input.address?.trim() || null,
     note: input.note?.trim() || null,
     product: input.product?.trim() || null,
     product_id: input.product_id ?? null,
@@ -79,6 +81,30 @@ export async function getOverdueCount(now = Date.now()): Promise<number> {
     .count();
 }
 
+/** Khách warm/hot chưa liên hệ ≥ N ngày — gợi ý ưu đãi. */
+export async function countPromoCandidates(staleDays = 7): Promise<number> {
+  const cutoff = Date.now() - staleDays * 86400000;
+  return db.customers
+    .filter(
+      (c) =>
+        (c.status === 'warm' || c.status === 'hot') &&
+        (!c.last_contact_at || c.last_contact_at < cutoff),
+    )
+    .count();
+}
+
+/** Khách đã chốt, lâu chưa liên hệ — gợi ý tri ân. */
+export async function countLoyaltyCustomers(staleDays = 30): Promise<number> {
+  const cutoff = Date.now() - staleDays * 86400000;
+  return db.customers
+    .filter(
+      (c) =>
+        c.status === 'closed' &&
+        (!c.last_contact_at || c.last_contact_at < cutoff),
+    )
+    .count();
+}
+
 export async function messageSent(customer: Customer): Promise<void> {
   if (!customer.id) return;
   const now = Date.now();
@@ -129,7 +155,12 @@ export async function getMonthlyStats(year: number, month: number): Promise<Mont
     .toArray();
 
   const contacts = interactions.length;
-  const closed = interactions.filter((i) => i.content === 'Đã chốt đơn').length;
+  const closed = interactions.filter(
+    (i) =>
+      i.content === 'Đã chốt đơn' ||
+      i.content.startsWith('Đã chốt đơn:') ||
+      i.content.startsWith('Ghi đơn:'),
+  ).length;
 
   const newCustomers = await db.customers
     .where('created_at')
@@ -219,6 +250,7 @@ export function filterCustomers(customers: Customer[], query: string): Customer[
     (c) =>
       c.name.toLowerCase().includes(q) ||
       (c.phone?.toLowerCase().includes(q) ?? false) ||
+      (c.address?.toLowerCase().includes(q) ?? false) ||
       (c.product?.toLowerCase().includes(q) ?? false),
   );
 }

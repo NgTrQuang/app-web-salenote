@@ -11,6 +11,7 @@ import 'screens/splash_screen.dart';
 import 'screens/pin_screen.dart';
 import 'screens/home_screen.dart';
 import 'utils/constants.dart';
+import 'widgets/system_insets_scope.dart';
 
 final themeModeNotifier = ValueNotifier<ThemeMode>(ThemeMode.system);
 final localeModeNotifier = ValueNotifier<Locale>(const Locale('vi'));
@@ -51,17 +52,30 @@ void main() async {
   // Init lifecycle tracker
   AppLifecycleService.instance.init();
 
-  // Init notification service
-  await NotificationService().init();
-  final notifEnabled = await NotificationService().isEnabled();
-  if (notifEnabled) {
-    await NotificationService().scheduleSmartReminder();
-  }
-
-  // Auto backup once per day (silent)
-  BackupService().autoBackupIfNeeded();
-
   runApp(const SoKhachApp());
+
+  // Khởi tạo nền sau khi UI lên — tránh crash trước runApp chặn mở app
+  _initBackgroundServices();
+}
+
+Future<void> _initBackgroundServices() async {
+  try {
+    await NotificationService().init();
+    final notif = NotificationService();
+    final anyNotifEnabled = await notif.isEnabled() ||
+        await notif.isWeeklyEnabled() ||
+        await notif.isMonthlyEnabled() ||
+        await notif.isLoyaltyEnabled();
+    if (anyNotifEnabled) {
+      await notif.rescheduleAllReminders();
+      await notif.catchUpMissedReminders();
+    }
+  } catch (_) {
+    // Thông báo lỗi không được chặn mở app
+  }
+  try {
+    BackupService().autoBackupIfNeeded();
+  } catch (_) {}
 }
 
 class SoKhachApp extends StatelessWidget {
@@ -87,6 +101,9 @@ class SoKhachApp extends StatelessWidget {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
+          builder: (context, child) => SystemInsetsScope(
+            child: child ?? const SizedBox.shrink(),
+          ),
           home: const SplashGate(),
         ),
       ),
@@ -229,28 +246,7 @@ class SplashGate extends StatefulWidget {
   State<SplashGate> createState() => _SplashGateState();
 }
 
-class _SplashGateState extends State<SplashGate> with WidgetsBindingObserver {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      // Re-schedule reminder when user returns to app, so tomorrow's
-      // notification reflects the latest customer data.
-      NotificationService().onAppResumed();
-    }
-  }
-
+class _SplashGateState extends State<SplashGate> {
   @override
   Widget build(BuildContext context) {
     return const SplashScreen();

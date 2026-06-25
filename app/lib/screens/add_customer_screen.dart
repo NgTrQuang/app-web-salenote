@@ -17,6 +17,7 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
+  final _addressCtrl = TextEditingController();
   final _productCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
   String _status = 'new';
@@ -38,6 +39,7 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
   void dispose() {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
+    _addressCtrl.dispose();
     _productCtrl.dispose();
     _noteCtrl.dispose();
     super.dispose();
@@ -65,6 +67,7 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
       final customer = await CustomerService().addCustomer(
         name: _nameCtrl.text.trim(),
         phone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
+        address: _addressCtrl.text.trim().isEmpty ? null : _addressCtrl.text.trim(),
         note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
         product:
             _productCtrl.text.trim().isEmpty ? null : _productCtrl.text.trim(),
@@ -135,6 +138,18 @@ class _AddCustomerScreenState extends State<AddCustomerScreen> {
               ),
               keyboardType: TextInputType.phone,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              textInputAction: TextInputAction.next,
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _addressCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Địa chỉ giao hàng',
+                hintText: 'Số nhà, phường, quận, tỉnh...',
+                prefixIcon: Icon(Icons.location_on_outlined),
+                alignLabelWithHint: true,
+              ),
+              maxLines: 2,
               textInputAction: TextInputAction.next,
             ),
             const SizedBox(height: 14),

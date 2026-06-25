@@ -9,6 +9,7 @@ class CustomerService {
   Future<Customer> addCustomer({
     required String name,
     String? phone,
+    String? address,
     String? note,
     String? product,
     int? productId,
@@ -21,6 +22,7 @@ class CustomerService {
     final customer = Customer(
       name: name,
       phone: phone,
+      address: address,
       note: note,
       product: product,
       productId: productId,
@@ -95,6 +97,7 @@ class CustomerService {
     return customers.where((c) {
       return c.name.toLowerCase().contains(q) ||
           (c.phone?.contains(q) ?? false) ||
+          (c.address?.toLowerCase().contains(q) ?? false) ||
           (c.product?.toLowerCase().contains(q) ?? false);
     }).toList();
   }

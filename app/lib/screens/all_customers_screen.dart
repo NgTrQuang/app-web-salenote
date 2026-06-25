@@ -4,6 +4,7 @@ import '../models/customer.dart';
 import '../services/customer_service.dart';
 import '../utils/constants.dart';
 import '../widgets/customer_card.dart';
+import '../widgets/app_drawer.dart';
 import 'customer_detail_screen.dart';
 
 class AllCustomersScreen extends StatefulWidget {
@@ -20,6 +21,7 @@ class _AllCustomersScreenState extends State<AllCustomersScreen> {
   List<Customer> _all = [];
   List<Customer> _filtered = [];
   String _filterStatus = 'all';
+  String _filterSource = 'all';
   String _searchQuery = '';
   bool _loading = true;
   _SortOrder _sortOrder = _SortOrder.newest;
@@ -53,6 +55,7 @@ class _AllCustomersScreenState extends State<AllCustomersScreen> {
     if (_filterStatus != 'all') {
       list = list.where((c) => c.status == _filterStatus).toList();
     }
+    list = _service.filterBySource(list, _filterSource);
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
       list = list.where((c) {
@@ -191,6 +194,7 @@ class _AllCustomersScreenState extends State<AllCustomersScreen> {
 
     return Scaffold(
       backgroundColor: bg,
+      drawer: const AppDrawer(current: 'customers'),
       body: CustomScrollView(
         slivers: [
           // ── Pinned AppBar + Search + Filter ───────────────────
@@ -219,7 +223,7 @@ class _AllCustomersScreenState extends State<AllCustomersScreen> {
               const SizedBox(width: 4),
             ],
             bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(108),
+              preferredSize: const Size.fromHeight(152),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -278,6 +282,39 @@ class _AllCustomersScreenState extends State<AllCustomersScreen> {
                     counts: _buildCounts(),
                     onSelect: _onFilter,
                     bg: bg,
+                  ),
+                  SizedBox(
+                    height: 44,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
+                      children: [
+                        _SourceChip(
+                          label: 'Nguồn: Tất cả',
+                          selected: _filterSource == 'all',
+                          onTap: () => setState(() {
+                            _filterSource = 'all';
+                            _applyFilter();
+                          }),
+                        ),
+                        _SourceChip(
+                          label: 'Chưa ghi',
+                          selected: _filterSource == '_none',
+                          onTap: () => setState(() {
+                            _filterSource = '_none';
+                            _applyFilter();
+                          }),
+                        ),
+                        ...AppConstants.customerSources.map((s) => _SourceChip(
+                              label: s['label']!,
+                              selected: _filterSource == s['key'],
+                              onTap: () => setState(() {
+                                _filterSource = s['key']!;
+                                _applyFilter();
+                              }),
+                            )),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -426,6 +463,35 @@ class _FilterBar extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _SourceChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _SourceChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: FilterChip(
+        label: Text(label, style: const TextStyle(fontSize: 12)),
+        selected: selected,
+        onSelected: (_) => onTap(),
+        showCheckmark: false,
+        selectedColor: theme.colorScheme.primaryContainer,
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        visualDensity: VisualDensity.compact,
       ),
     );
   }

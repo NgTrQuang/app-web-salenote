@@ -3,6 +3,7 @@ import '../models/product.dart';
 import '../services/product_service.dart';
 import '../utils/constants.dart';
 import '../utils/money.dart';
+import '../widgets/app_drawer.dart';
 
 class ProductsScreen extends StatefulWidget {
   const ProductsScreen({super.key});
@@ -63,6 +64,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: const AppDrawer(current: 'products'),
       appBar: AppBar(title: const Text('Sản phẩm')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openForm(),
@@ -157,6 +159,7 @@ class _ProductFormState extends State<_ProductForm> {
   late final TextEditingController _cost;
   late final TextEditingController _sell;
   late final TextEditingController _comm;
+  late final TextEditingController _note;
   late final TextEditingController _stock;
   late final TextEditingController _threshold;
   late bool _trackInventory;
@@ -169,6 +172,7 @@ class _ProductFormState extends State<_ProductForm> {
     _cost = TextEditingController(text: p != null ? formatMoneyInput(p.costPrice) : '');
     _sell = TextEditingController(text: p != null ? formatMoneyInput(p.defaultSellPrice) : '');
     _comm = TextEditingController(text: p != null ? formatMoneyInput(p.defaultCommission) : '');
+    _note = TextEditingController(text: p?.note ?? '');
     _stock = TextEditingController(text: '${p?.stockQuantity ?? 0}');
     _threshold = TextEditingController(text: '${p?.lowStockThreshold ?? 5}');
     _trackInventory = p?.trackInventory ?? false;
@@ -180,6 +184,7 @@ class _ProductFormState extends State<_ProductForm> {
     _cost.dispose();
     _sell.dispose();
     _comm.dispose();
+    _note.dispose();
     _stock.dispose();
     _threshold.dispose();
     super.dispose();
@@ -205,6 +210,12 @@ class _ProductFormState extends State<_ProductForm> {
             TextField(controller: _sell, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Giá bán')),
             const SizedBox(height: 12),
             TextField(controller: _comm, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Hoa hồng')),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _note,
+              decoration: const InputDecoration(labelText: 'Ghi chú'),
+              maxLines: 2,
+            ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               title: const Text('Theo dõi tồn kho'),
@@ -226,6 +237,7 @@ class _ProductFormState extends State<_ProductForm> {
                   costPrice: parseMoneyInput(_cost.text),
                   defaultSellPrice: parseMoneyInput(_sell.text),
                   defaultCommission: parseMoneyInput(_comm.text),
+                  note: _note.text.trim().isEmpty ? null : _note.text.trim(),
                   trackInventory: _trackInventory,
                   stockQuantity: int.tryParse(_stock.text) ?? 0,
                   lowStockThreshold: int.tryParse(_threshold.text) ?? 5,

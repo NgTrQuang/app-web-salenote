@@ -85,6 +85,19 @@ class CustomerCard extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ],
+                      if (customer.source != null &&
+                          customer.source!.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          AppConstants.sourceLabel(customer.source),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: theme.colorScheme.primary.withAlpha(180),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                       const SizedBox(height: 5),
                       Row(
                         children: [

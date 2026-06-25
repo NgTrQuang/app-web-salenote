@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import type { Customer } from '@/types';
 import { Breadcrumbs } from '@/components/CustomerTable';
 import { OrderForm } from '@/components/OrderForm';
-import { PageHeader, Panel, LoadingSpinner, FieldLabel } from '@/components/ui';
+import { CustomerPicker } from '@/components/CustomerPicker';
+import { PageHeader, Panel, LoadingSpinner } from '@/components/ui';
 import { getAllCustomers, getCustomer } from '@/lib/customerService';
 
 export function AddOrderPage() {
@@ -48,22 +49,11 @@ export function AddOrderPage() {
       <div className="max-w-2xl">
         <Panel>
           <div className="mb-6">
-            <FieldLabel>Chọn khách hàng *</FieldLabel>
-            <select
+            <CustomerPicker
+              customers={customers}
               value={selectedId}
-              onChange={(e) =>
-                setSelectedId(e.target.value === '' ? '' : Number(e.target.value))
-              }
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900"
-            >
-              <option value="">— Chọn khách —</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                  {c.phone ? ` (${c.phone})` : ''}
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedId}
+            />
             {customers.length === 0 && (
               <p className="mt-2 text-sm text-slate-500">
                 Chưa có khách.{' '}

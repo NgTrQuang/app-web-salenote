@@ -14,10 +14,12 @@ class AppLocalizations {
   bool get isVi => locale.languageCode == 'vi';
 
   // ── App ────────────────────────────────────────────────────
-  String get appName => isVi ? 'Sổ Khách' : 'Customer Notebook';
+  String get appName => isVi ? 'Salenote' : 'Salenote';
+  String get appNameFull =>
+      isVi ? 'Sổ Sale Cá Nhân - Salenote' : 'Personal Sales Ledger - Salenote';
   String get appTagline => isVi
-      ? 'Công cụ hành động hàng ngày cho chủ shop'
-      : 'Daily action tool for shop owners';
+      ? 'Sổ Sale Cá Nhân · Chăm khách, ghi đơn, biết tiền'
+      : 'Personal sales ledger · CRM, orders & money';
   String get version => isVi ? 'Phiên bản' : 'Version';
 
   // ── Home ───────────────────────────────────────────────────
@@ -127,11 +129,30 @@ class AppLocalizations {
   String get invalidFile => isVi ? 'File không hợp lệ' : 'Invalid file';
   String get notifications => isVi ? 'Thông báo' : 'Notifications';
   String get dailyReminder => isVi ? 'Nhắc nhở hàng ngày' : 'Daily Reminder';
-  String get dailyReminderSub =>
-      isVi ? 'Thông báo lúc 9:00 sáng nếu có khách cần nhắn' : 'Notification at 9:00 AM if customers need follow-up';
+  String get dailyReminderSub => isVi
+      ? 'Thông báo vào giờ bạn chọn nếu có khách cần nhắn'
+      : 'Notification at your chosen time when follow-ups are due';
+  String notifEnabledAt(int hour, int minute) => isVi
+      ? 'Đã bật nhắc nhở ${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')} ✓'
+      : 'Reminder enabled at ${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')} ✓';
+  String get notifTimeSaved => isVi
+      ? 'Đã cập nhật giờ nhắc nhở ✓'
+      : 'Reminder time updated ✓';
+  String get weeklyDigest => isVi ? 'Tổng kết tuần' : 'Weekly digest';
+  String get weeklyDigestSub => isVi
+      ? 'Thứ Hai — doanh số 7 ngày & gợi ý kế hoạch tuần mới'
+      : 'Monday — last 7 days sales & weekly planning';
+  String get monthlyDigest => isVi ? 'Tổng kết tháng' : 'Monthly digest';
+  String get monthlyDigestSub => isVi
+      ? 'Ngày 1 hàng tháng — liên hệ, chốt đơn tháng trước & mục tiêu mới'
+      : '1st of month — last month stats & new goals';
+  String get loyaltyReminder => isVi ? 'Tri ân & ưu đãi khách' : 'Loyalty & promos';
+  String get loyaltyReminderSub => isVi
+      ? 'Thứ Sáu — khách tiềm năng lâu chưa chăm & khách cũ gửi quà tri ân'
+      : 'Friday — warm leads to nurture & past customers for thank-you offers';
   String get notifPermRequired =>
       isVi ? 'Cần cấp quyền thông báo trong Cài đặt điện thoại' : 'Notification permission required in phone Settings';
-  String get notifEnabled => isVi ? 'Đã bật nhắc nhở 9:00 sáng ✓' : 'Daily reminder enabled ✓';
+  String get notifEnabled => isVi ? 'Đã bật nhắc nhở ✓' : 'Daily reminder enabled ✓';
   String get notifDisabled => isVi ? 'Đã tắt thông báo nhắc nhở' : 'Reminder disabled';
   String get appearance => isVi ? 'Giao diện' : 'Appearance';
   String get themeSystem => isVi ? 'Theo hệ thống' : 'System';
@@ -160,7 +181,7 @@ class AppLocalizations {
 
   // ── PIN Screen ─────────────────────────────────────────────
   String get pinUnlockTitle => isVi ? 'Nhập mã PIN' : 'Enter PIN';
-  String get pinUnlockSub => isVi ? 'Nhập mã PIN để mở Sổ Khách' : 'Enter PIN to open Customer Notebook';
+  String get pinUnlockSub => isVi ? 'Nhập mã PIN để mở Salenote' : 'Enter PIN to open Salenote';
   String get pinSetupTitle => isVi ? 'Đặt mã PIN mới' : 'Set New PIN';
   String get pinSetupSub => isVi ? 'Chọn mã PIN 4 chữ số' : 'Choose a 4-digit PIN';
   String get pinConfirmTitle => isVi ? 'Nhập lại mã PIN' : 'Confirm PIN';
@@ -171,7 +192,7 @@ class AppLocalizations {
   String get pinMismatch => isVi ? 'PIN không khớp, thử lại' : 'PINs don\'t match, try again';
 
   // ── Notifications (smart) ─────────────────────────────────
-  String get notifTitle => isVi ? 'Sổ Khách' : 'Customer Notebook';
+  String get notifTitle => isVi ? 'Salenote' : 'Salenote';
   String notifBodyHot(int n) => isVi
       ? 'Có $n khách NÓNG đang chờ bạn liên hệ!'
       : '$n HOT customers are waiting for your follow-up!';
@@ -201,6 +222,9 @@ class AppLocalizations {
 
   // ── Guide ──────────────────────────────────────────────────
   String get guideTitle => isVi ? 'Hướng dẫn sử dụng' : 'User Guide';
+  String get guideIntro => isVi
+      ? 'Sổ sale cá nhân — chăm khách, ghi đơn có tiền, biết doanh thu theo sản phẩm và nguồn. Dữ liệu khách ↔ sản phẩm ↔ đơn hàng liên kết trên máy bạn.'
+      : 'Personal sales ledger — CRM, orders with revenue, and source analytics. Customer ↔ product ↔ order data stays on your device.';
   String get guide1Title => isVi ? 'Thêm khách hàng' : 'Add a Customer';
   String get guide1Body => isVi
       ? 'Nhấn nút "Thêm khách" ở góc dưới màn hình chính. Điền tên (bắt buộc), SĐT, sản phẩm và ghi chú tuỳ ý.\n\nQuan trọng: Chọn đúng trạng thái ngay khi thêm khách để app tính lịch nhắc chính xác. Mặc định là "Mới".'

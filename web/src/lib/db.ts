@@ -36,6 +36,27 @@ class SalenoteDatabase extends Dexie {
       orders: '++id, customer_id, product_id, created_at, payment_status',
       settings: 'key',
     });
+    this.version(5).stores({
+      customers: '++id, name, status, source, product_id, next_action_at, created_at',
+      interactions: '++id, customer_id, created_at',
+      products: '++id, name, active, track_inventory, created_at',
+      orders: '++id, customer_id, product_id, created_at, payment_status',
+      settings: 'key',
+    }).upgrade(async (tx) => {
+      const orders = await tx.table('orders').toArray();
+      const customers = await tx.table('customers').toArray();
+      const byId = new Map(customers.map((c) => [c.id as number, c]));
+      for (const order of orders) {
+        if (order.shipping_name) continue;
+        const customer = byId.get(order.customer_id);
+        if (!customer) continue;
+        await tx.table('orders').update(order.id as number, {
+          shipping_name: customer.name,
+          shipping_phone: customer.phone ?? null,
+          shipping_address: customer.address ?? null,
+        });
+      }
+    });
   }
 }
 

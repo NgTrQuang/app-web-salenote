@@ -10,6 +10,9 @@ class Order {
   final String paymentStatus;
   final double paidAmount;
   final String? note;
+  final String? shippingName;
+  final String? shippingPhone;
+  final String? shippingAddress;
   final int createdAt;
 
   Order({
@@ -24,6 +27,9 @@ class Order {
     required this.paymentStatus,
     required this.paidAmount,
     this.note,
+    this.shippingName,
+    this.shippingPhone,
+    this.shippingAddress,
     required this.createdAt,
   });
 
@@ -40,6 +46,9 @@ class Order {
       paymentStatus: map['payment_status'] as String,
       paidAmount: (map['paid_amount'] as num).toDouble(),
       note: map['note'] as String?,
+      shippingName: map['shipping_name'] as String?,
+      shippingPhone: map['shipping_phone'] as String?,
+      shippingAddress: map['shipping_address'] as String?,
       createdAt: map['created_at'] as int,
     );
   }
@@ -57,6 +66,9 @@ class Order {
       'payment_status': paymentStatus,
       'paid_amount': paidAmount,
       'note': note,
+      'shipping_name': shippingName,
+      'shipping_phone': shippingPhone,
+      'shipping_address': shippingAddress,
       'created_at': createdAt,
     };
   }

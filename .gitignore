@@ -103,6 +103,9 @@ coverage/
 # ── Misc ──────────────────────────────────────────────────────
 *.class
 *.pyc
+*.mp4
+*.mov
+*.avi
 .atom/
 .buildlog/
 .history/

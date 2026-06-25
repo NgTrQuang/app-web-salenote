@@ -2,6 +2,7 @@ import '../database/database_helper.dart';
 import '../models/customer.dart';
 import '../models/order.dart';
 import '../utils/constants.dart';
+import '../utils/shipping_utils.dart';
 
 class OrderService {
   final DatabaseHelper _db = DatabaseHelper();
@@ -17,6 +18,9 @@ class OrderService {
     required String paymentStatus,
     required double paidAmount,
     String? note,
+    String? shippingName,
+    String? shippingPhone,
+    String? shippingAddress,
     bool markCustomerClosed = true,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -24,6 +28,18 @@ class OrderService {
     var paid = paidAmount;
     if (paymentStatus == 'paid') paid = revenue;
     if (paymentStatus == 'unpaid') paid = 0;
+
+    final db = await _db.database;
+    final customerRows =
+        await db.query('customers', where: 'id = ?', whereArgs: [customerId]);
+    if (customerRows.isEmpty) throw StateError('Customer not found');
+    final customer = Customer.fromMap(customerRows.first);
+    final shipping = snapshotShipping(
+      customer,
+      shippingName: shippingName,
+      shippingPhone: shippingPhone,
+      shippingAddress: shippingAddress,
+    );
 
     final order = Order(
       customerId: customerId,
@@ -36,10 +52,11 @@ class OrderService {
       paymentStatus: paymentStatus,
       paidAmount: paid,
       note: note?.trim().isEmpty == true ? null : note?.trim(),
+      shippingName: shipping.shippingName,
+      shippingPhone: shipping.shippingPhone,
+      shippingAddress: shipping.shippingAddress,
       createdAt: now,
     );
-
-    final db = await _db.database;
     final id = await db.transaction((txn) async {
       final orderId = await txn.insert('orders', order.toMap());
 
@@ -100,6 +117,9 @@ class OrderService {
       paymentStatus: order.paymentStatus,
       paidAmount: order.paidAmount,
       note: order.note,
+      shippingName: order.shippingName,
+      shippingPhone: order.shippingPhone,
+      shippingAddress: order.shippingAddress,
       createdAt: order.createdAt,
     );
   }
@@ -109,6 +129,107 @@ class OrderService {
   }
 
   Future<List<Order>> getAllOrders() => _db.getAllOrders();
+
+  Future<int> countOrders() => _db.countOrders();
+
+  Future<List<Order>> getOrdersPaged(int page, int pageSize) {
+    final offset = (page - 1) * pageSize;
+    return _db.getOrdersPaged(limit: pageSize, offset: offset);
+  }
+
+  Future<Order> updateOrderPayment({
+    required int orderId,
+    required String paymentStatus,
+    required double paidAmount,
+  }) async {
+    final db = await _db.database;
+    final rows = await db.query('orders', where: 'id = ?', whereArgs: [orderId]);
+    if (rows.isEmpty) throw StateError('Order not found');
+    final order = Order.fromMap(rows.first);
+    if (order.paymentStatus == 'paid') {
+      throw StateError('Order already paid');
+    }
+
+    final revenue = order.revenue;
+    var paid = paidAmount;
+    if (paymentStatus == 'paid') paid = revenue;
+    if (paymentStatus == 'unpaid') paid = 0;
+    if (paymentStatus == 'partial') {
+      paid = paid.clamp(0, revenue);
+    }
+
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await db.transaction((txn) async {
+      await txn.update(
+        'orders',
+        {'payment_status': paymentStatus, 'paid_amount': paid},
+        where: 'id = ?',
+        whereArgs: [orderId],
+      );
+      final paidLabel = paymentStatus == 'paid'
+          ? 'đã thu đủ'
+          : paymentStatus == 'partial'
+              ? 'đã thu ${paid.round()}đ'
+              : 'chưa thu';
+      await txn.insert('interactions', {
+        'customer_id': order.customerId,
+        'content':
+            'Cập nhật thanh toán đơn "${order.productName}": $paidLabel',
+        'created_at': now,
+      });
+    });
+
+    return Order(
+      id: order.id,
+      customerId: order.customerId,
+      productId: order.productId,
+      productName: order.productName,
+      quantity: order.quantity,
+      unitSellPrice: order.unitSellPrice,
+      unitCost: order.unitCost,
+      unitCommission: order.unitCommission,
+      paymentStatus: paymentStatus,
+      paidAmount: paid,
+      note: order.note,
+      shippingName: order.shippingName,
+      shippingPhone: order.shippingPhone,
+      shippingAddress: order.shippingAddress,
+      createdAt: order.createdAt,
+    );
+  }
+
+  Future<Order> updateOrderShipping({
+    required int orderId,
+    required String shippingName,
+    String? shippingPhone,
+    String? shippingAddress,
+  }) async {
+    final db = await _db.database;
+    final rows = await db.query('orders', where: 'id = ?', whereArgs: [orderId]);
+    if (rows.isEmpty) throw StateError('Order not found');
+    final order = Order.fromMap(rows.first);
+
+    final updated = Order(
+      id: order.id,
+      customerId: order.customerId,
+      productId: order.productId,
+      productName: order.productName,
+      quantity: order.quantity,
+      unitSellPrice: order.unitSellPrice,
+      unitCost: order.unitCost,
+      unitCommission: order.unitCommission,
+      paymentStatus: order.paymentStatus,
+      paidAmount: order.paidAmount,
+      note: order.note,
+      shippingName: shippingName.trim(),
+      shippingPhone: shippingPhone?.trim().isEmpty == true ? null : shippingPhone?.trim(),
+      shippingAddress: shippingAddress?.trim().isEmpty == true ? null : shippingAddress?.trim(),
+      createdAt: order.createdAt,
+    );
+
+    await db.update('orders', updated.toMap(), where: 'id = ?', whereArgs: [orderId]);
+    return updated;
+  }
 
   Future<List<Order>> getOrdersByCustomer(int customerId) =>
       _db.getOrdersByCustomer(customerId);
@@ -197,5 +318,24 @@ class OrderService {
             })
         .toList()
       ..sort((a, b) => (b['revenue'] as num).compareTo(a['revenue'] as num));
+  }
+
+  Future<List<Map<String, dynamic>>> getTopSalesProductsByRevenue(
+      int start, int end) async {
+    final orders = await _db.getOrdersInRange(start, end);
+    if (orders.isEmpty) return [];
+
+    final agg = <String, double>{};
+    for (final o in orders) {
+      agg[o.productName] = (agg[o.productName] ?? 0) + o.revenue;
+    }
+
+    final sorted = agg.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+
+    return sorted
+        .take(5)
+        .map((e) => {'product': e.key, 'revenue': e.value})
+        .toList();
   }
 }

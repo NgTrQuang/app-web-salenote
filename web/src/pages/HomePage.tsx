@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, Plus, Receipt, Package } from 'lucide-react';
+import { Users, Package, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Customer } from '@/types';
 import { CustomerTable } from '@/components/CustomerTable';
 import { SalesDashboard } from '@/components/SalesDashboard';
+import { DailyActionCenter } from '@/components/DailyActionCenter';
+import { AtRiskAlerts } from '@/components/AtRiskAlerts';
+import { AchievementBanner } from '@/components/AchievementBanner';
+import { RevenueInsightCard } from '@/components/RevenueInsightCard';
 import {
   PageHeader,
   EmptyState,
@@ -11,19 +15,26 @@ import {
   LoadingSpinner,
   SearchInput,
   Panel,
-  PrimaryButton,
 } from '@/components/ui';
 import { useDataRefresh } from '@/hooks/useDataRefresh';
 import {
   filterCustomers,
   getNeedsAttention,
   getUpcoming,
-  getOverdueCount,
-  getCurrentStreak,
   messageSent,
 } from '@/lib/customerService';
 import { getSalesSummaryForDay, getSalesSummaryForMonth } from '@/lib/orderService';
 import { getLowStockProducts, stockStatusLabel } from '@/lib/productService';
+import {
+  getDailyActions,
+  getAtRiskSummary,
+  getAchievementStats,
+  getRevenueInsights,
+  type DailyAction,
+  type AtRiskSummary,
+  type AchievementStats,
+  type RevenueInsight,
+} from '@/lib/insightsService';
 import { productStockStatus } from '@/types';
 import type { SalesSummary, Product } from '@/types';
 
@@ -42,21 +53,36 @@ export function HomePage() {
   const [loading, setLoading] = useState(true);
   const [needsAttention, setNeedsAttention] = useState<Customer[]>([]);
   const [upcoming, setUpcoming] = useState<Customer[]>([]);
-  const [overdueCount, setOverdueCount] = useState(0);
-  const [streak, setStreak] = useState(0);
+  const [actions, setActions] = useState<DailyAction[]>([]);
+  const [atRisk, setAtRisk] = useState<AtRiskSummary | null>(null);
+  const [achievements, setAchievements] = useState<AchievementStats | null>(null);
+  const [insights, setInsights] = useState<RevenueInsight[]>([]);
   const [todaySales, setTodaySales] = useState<SalesSummary>(emptySales);
   const [monthSales, setMonthSales] = useState<SalesSummary>(emptySales);
   const [lowStock, setLowStock] = useState<Product[]>([]);
+  const [showSales, setShowSales] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const [needs, up, overdue, str, today, month, low] = await Promise.all([
+      const [
+        needs,
+        up,
+        dailyActions,
+        risk,
+        achieve,
+        revenueInsights,
+        today,
+        month,
+        low,
+      ] = await Promise.all([
         getNeedsAttention(),
         getUpcoming(),
-        getOverdueCount(),
-        getCurrentStreak(),
+        getDailyActions(),
+        getAtRiskSummary(),
+        getAchievementStats(),
+        getRevenueInsights(),
         getSalesSummaryForDay(),
         getSalesSummaryForMonth(),
         getLowStockProducts(),
@@ -64,8 +90,10 @@ export function HomePage() {
       if (!cancelled) {
         setNeedsAttention(needs);
         setUpcoming(up);
-        setOverdueCount(overdue);
-        setStreak(str);
+        setActions(dailyActions);
+        setAtRisk(risk);
+        setAchievements(achieve);
+        setInsights(revenueInsights);
         setTodaySales(today);
         setMonthSales(month);
         setLowStock(low);
@@ -87,31 +115,46 @@ export function HomePage() {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <PageHeader
-        title="Bảng điều khiển"
-        subtitle="Doanh số cá nhân — biết tiền và biết khách cần chăm"
-        // action={
-        //   <div className="flex flex-wrap gap-2">
-        //     <Link to="/orders/new">
-        //       <PrimaryButton>
-        //         <Receipt className="h-4 w-4" />
-        //         Ghi đơn
-        //       </PrimaryButton>
-        //     </Link>
-        //     <Link
-        //       to="/customers/new"
-        //       className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200"
-        //     >
-        //       <Plus className="h-4 w-4" />
-        //       Thêm khách
-        //     </Link>
-        //   </div>
-        // }
+        title="Trợ lý bán hàng"
+        subtitle="Việc cần làm hôm nay — không bỏ sót khách, không bỏ sót tiền"
       />
 
-      <SalesDashboard title="Hôm nay" summary={todaySales} />
-      <SalesDashboard title="Tháng này" summary={monthSales} />
+      <DailyActionCenter actions={actions} />
+
+      {achievements && <AchievementBanner stats={achievements} />}
+
+      {atRisk && <AtRiskAlerts summary={atRisk} />}
+
+      <RevenueInsightCard insights={insights} />
+
+      <div>
+        <button
+          type="button"
+          onClick={() => setShowSales((v) => !v)}
+          className="mb-3 flex w-full items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3 text-left text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+        >
+          <span>Doanh số (hôm nay & tháng này)</span>
+          {showSales ? (
+            <ChevronUp className="h-4 w-4 text-slate-400" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-slate-400" />
+          )}
+        </button>
+        {showSales && (
+          <div className="space-y-4">
+            <SalesDashboard title="Hôm nay" summary={todaySales} />
+            <SalesDashboard title="Tháng này" summary={monthSales} />
+          </div>
+        )}
+        {!showSales && (
+          <p className="text-xs text-slate-500">
+            Hôm nay: {todaySales.revenue.toLocaleString('vi-VN')}đ · Tháng:{' '}
+            {monthSales.revenue.toLocaleString('vi-VN')}đ — bấm để xem chi tiết
+          </p>
+        )}
+      </div>
 
       {lowStock.length > 0 && (
         <Panel title={`Cảnh báo tồn kho (${lowStock.length})`}>
@@ -140,9 +183,6 @@ export function HomePage() {
               );
             })}
           </ul>
-          {lowStock.length > 6 && (
-            <p className="mt-2 text-xs text-slate-500">+ {lowStock.length - 6} mặt hàng khác</p>
-          )}
           <Link
             to="/products"
             className="mt-3 inline-block text-sm font-medium text-brand-600 hover:underline dark:text-brand-400"
@@ -154,25 +194,25 @@ export function HomePage() {
 
       <div>
         <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-500">
-          Chăm khách
+          Tóm tắt chăm khách
         </h2>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             label="Cần liên hệ ngay"
             value={needsAttention.length}
             variant={needsAttention.length > 0 ? 'warning' : 'default'}
-            hint="Ưu tiên xử lý trước"
+            hint="Xem danh sách bên dưới"
           />
           <StatCard label="Sắp tới" value={upcoming.length} hint="Chưa đến hạn nhắc" />
           <StatCard
             label="Quá hạn > 3 ngày"
-            value={overdueCount}
-            variant={overdueCount > 0 ? 'warning' : 'default'}
+            value={atRisk?.overdue3Days ?? 0}
+            variant={(atRisk?.overdue3Days ?? 0) > 0 ? 'warning' : 'default'}
           />
           <StatCard
             label="Streak liên hệ"
-            value={streak > 0 ? `${streak} ngày` : '—'}
-            variant={streak >= 7 ? 'success' : 'brand'}
+            value={achievements && achievements.streak > 0 ? `${achievements.streak} ngày` : '—'}
+            variant={achievements && achievements.streak >= 7 ? 'success' : 'brand'}
           />
         </div>
       </div>

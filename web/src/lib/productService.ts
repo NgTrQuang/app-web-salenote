@@ -64,7 +64,17 @@ export async function deleteProduct(id: number): Promise<void> {
 }
 
 export async function toggleProductActive(product: Product): Promise<void> {
-  await updateProduct({ ...normalizeProduct(product), active: !product.active });
+  const nextActive = !product.active;
+  await updateProduct({ ...normalizeProduct(product), active: nextActive });
+
+  if (!nextActive && product.id) {
+    const linked = await db.customers.filter((c) => c.product_id === product.id).toArray();
+    for (const c of linked) {
+      if (c.id) {
+        await db.customers.update(c.id, { product_id: null });
+      }
+    }
+  }
 }
 
 /** SP đang theo dõi kho và sắp hết / hết hàng */

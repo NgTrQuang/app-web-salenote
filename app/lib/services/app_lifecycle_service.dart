@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'notification_service.dart';
 
 /// Singleton that tracks whether the app is currently in the foreground.
 /// Widgets should call [AppLifecycleService.instance.attach()] from
@@ -20,6 +21,7 @@ class AppLifecycleService with WidgetsBindingObserver {
     switch (state) {
       case AppLifecycleState.resumed:
         _isInForeground = true;
+        NotificationService().onAppResumed();
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:

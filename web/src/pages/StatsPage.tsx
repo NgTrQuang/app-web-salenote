@@ -9,6 +9,9 @@ import { monthRangeFromDate } from '@/lib/db';
 import type { MonthlyStats, Order } from '@/types';
 import { orderRevenue, summarizeOrders } from '@/types';
 import { formatMoney } from '@/lib/money';
+import { getRevenueInsights, getAchievementStats, type RevenueInsight } from '@/lib/insightsService';
+import { RevenueInsightCard } from '@/components/RevenueInsightCard';
+import { AchievementBanner } from '@/components/AchievementBanner';
 import { useDataRefresh } from '@/hooks/useDataRefresh';
 
 export function StatsPage() {
@@ -22,6 +25,10 @@ export function StatsPage() {
   const [revenueBySource, setRevenueBySource] = useState<
     { source: string; label: string; revenue: number; order_count: number }[]
   >([]);
+  const [insights, setInsights] = useState<RevenueInsight[]>([]);
+  const [achievements, setAchievements] = useState<Awaited<
+    ReturnType<typeof getAchievementStats>
+  > | null>(null);
   const [loading, setLoading] = useState(true);
 
   const isCurrentMonth =
@@ -36,11 +43,15 @@ export function StatsPage() {
       getCurrentStreak(),
       getOrdersInRange(start, end),
       getRevenueBySource(start, end),
-    ]).then(([s, str, orders, bySource]) => {
+      getRevenueInsights(date),
+      getAchievementStats(),
+    ]).then(([s, str, orders, bySource, ins, achieve]) => {
       setStats(s);
       setStreak(str);
       setMonthOrders(orders);
       setRevenueBySource(bySource);
+      setInsights(ins);
+      setAchievements(achieve);
       setLoading(false);
     });
   }, [year, month, refresh]);
@@ -80,7 +91,10 @@ export function StatsPage() {
     <div className="space-y-8">
       <Breadcrumbs items={[{ label: 'Bảng điều khiển', to: '/' }, { label: 'Thống kê' }]} />
 
-      <PageHeader title="Thống kê" subtitle="Doanh số và hiệu quả chăm khách theo tháng" />
+      <PageHeader
+        title="Thống kê"
+        subtitle="Quyết định bán hàng từ dữ liệu thực — doanh thu, nguồn khách, hiệu quả chăm sóc"
+      />
 
       <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <button
@@ -112,6 +126,10 @@ export function StatsPage() {
         <LoadingSpinner />
       ) : (
         <>
+          {achievements && <AchievementBanner stats={achievements} />}
+
+          <RevenueInsightCard insights={insights} />
+
           <SalesDashboard title={`Doanh số — ${monthLabel}`} summary={salesSummary} />
 
           <div>
@@ -119,9 +137,19 @@ export function StatsPage() {
               Chăm khách — {monthLabel}
             </h2>
             <div className="grid gap-4 sm:grid-cols-3">
-              <StatCard label="Lượt liên hệ" value={stats.contacts} />
-              <StatCard label="Đơn chốt (cũ)" value={stats.closed} variant="success" />
-              <StatCard label="Khách mới" value={stats.new_customers} variant="brand" />
+              <StatCard label="Lượt liên hệ" value={stats.contacts} hint="Mọi tương tác ghi nhận" />
+              <StatCard
+                label="Đơn chốt"
+                value={stats.closed}
+                variant="success"
+                hint="Ghi đơn / chốt trong tháng"
+              />
+              <StatCard
+                label="Khách mới"
+                value={stats.new_customers}
+                variant="brand"
+                hint="Khách thêm trong tháng"
+              />
             </div>
           </div>
 
@@ -129,7 +157,7 @@ export function StatsPage() {
             <Panel title="Tỷ lệ chốt đơn (liên hệ)">
               <p className="text-4xl font-bold tabular-nums text-brand-600">{conversion}%</p>
               <p className="mt-1 text-sm text-slate-500">
-                {stats.closed} / {stats.contacts} lượt liên hệ có ghi &quot;Đã chốt&quot;
+                {stats.closed} / {stats.contacts} lượt liên hệ có ghi đơn/chốt
               </p>
               <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
                 <div
@@ -137,10 +165,15 @@ export function StatsPage() {
                   style={{ width: `${Math.min(conversion, 100)}%` }}
                 />
               </div>
+              {stats.contacts === 0 && (
+                <p className="mt-3 text-sm text-slate-500">
+                  Chưa có liên hệ tháng này — chăm khách trên trang chủ để tích lũy số liệu.
+                </p>
+              )}
             </Panel>
 
-            {stats.top_products.length > 0 && (
-              <Panel title="Top SP được hỏi (lead)">
+            <Panel title="Top SP được hỏi (lead)">
+              {stats.top_products.length > 0 ? (
                 <ul className="space-y-2">
                   {stats.top_products.map((row) => {
                     const max = stats.top_products[0]?.cnt ?? 1;
@@ -161,21 +194,33 @@ export function StatsPage() {
                     );
                   })}
                 </ul>
-              </Panel>
-            )}
+              ) : (
+                <p className="text-sm text-slate-500">
+                  Chưa có sản phẩm quan tâm — ghi SP khi thêm/sửa khách.
+                </p>
+              )}
+            </Panel>
           </div>
 
-          {monthOrders.length > 0 && (
-            <Panel title="Top doanh thu theo sản phẩm (đơn thực)">
+          <Panel title="Top doanh thu theo sản phẩm (đơn thực)">
+            {monthOrders.length > 0 ? (
               <TopSalesProducts orders={monthOrders} />
-            </Panel>
-          )}
+            ) : (
+              <p className="text-sm text-slate-500">
+                Chưa có đơn tháng này — ghi đơn từ trang khách hoặc Đơn hàng.
+              </p>
+            )}
+          </Panel>
 
-          {revenueBySource.length > 0 && (
-            <Panel title="Doanh thu theo nguồn khách">
+          <Panel title="Doanh thu theo nguồn khách">
+            {revenueBySource.length > 0 ? (
               <RevenueBySourceList rows={revenueBySource} />
-            </Panel>
-          )}
+            ) : (
+              <p className="text-sm text-slate-500">
+                Chưa có doanh thu theo nguồn — ghi nguồn khách khi thêm khách và ghi đơn.
+              </p>
+            )}
+          </Panel>
         </>
       )}
     </div>

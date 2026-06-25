@@ -24,6 +24,13 @@ class AppConstants {
   static const String keyNotificationMinute = 'notification_minute';
   static const String keyNotificationSound = 'notification_sound'; // 'default' | 'email' | 'silent'
   static const String keyNotificationVibrate = 'notification_vibrate';
+  static const String keyWeeklyDigestEnabled = 'notification_weekly_enabled';
+  static const String keyMonthlyDigestEnabled = 'notification_monthly_enabled';
+  static const String keyLoyaltyReminderEnabled = 'notification_loyalty_enabled';
+  static const String keyNotifLastDaily = 'notif_last_daily';
+  static const String keyNotifLastWeekly = 'notif_last_weekly';
+  static const String keyNotifLastMonthly = 'notif_last_monthly';
+  static const String keyNotifLastLoyalty = 'notif_last_loyalty';
   static const String keyLastBackupDate = 'last_backup_date';
   static const String keyThemeMode = 'theme_mode';
   static const String keyPinHash = 'pin_hash';
@@ -32,6 +39,10 @@ class AppConstants {
   static const String keySwipeHintShown = 'swipe_hint_shown';
   static const String keyDailyTipDate = 'daily_tip_date';
   static const String keyMilestoneShown = 'milestone_shown';
+  static const String keyShopName = 'shop_name';
+  static const String keyShopPhone = 'shop_phone';
+
+  static const String appName = 'Salenote';
 
   // Notification defaults
   static const int defaultNotifHour = 9;

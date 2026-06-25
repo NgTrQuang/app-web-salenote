@@ -5,25 +5,44 @@ import type { Customer, Order } from '@/types';
 import { PAYMENT_LABELS, orderCommission, orderDebt, orderProfit, orderRevenue } from '@/types';
 import { Breadcrumbs } from '@/components/CustomerTable';
 import { PageHeader, Panel, EmptyState, LoadingSpinner, PrimaryButton } from '@/components/ui';
-import { getAllOrders } from '@/lib/orderService';
+import { Pagination } from '@/components/Pagination';
+import { OrderPaymentDialog } from '@/components/OrderPaymentDialog';
+import { countOrders, getOrdersPaged } from '@/lib/orderService';
 import { getAllCustomers } from '@/lib/customerService';
 import { formatMoney } from '@/lib/money';
 import { useDataRefresh } from '@/hooks/useDataRefresh';
+
+const PAGE_SIZE = 20;
 
 export function OrdersPage() {
   const refresh = useDataRefresh();
   const [orders, setOrders] = useState<Order[]>([]);
   const [customerMap, setCustomerMap] = useState<Map<number, Customer>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([getAllOrders(), getAllCustomers()]).then(([ords, customers]) => {
-      setOrders(ords);
-      setCustomerMap(new Map(customers.map((c) => [c.id!, c])));
-      setLoading(false);
-    });
-  }, [refresh]);
+    Promise.all([getOrdersPaged(page, PAGE_SIZE), countOrders(), getAllCustomers()]).then(
+      ([ords, count, customers]) => {
+        setOrders(ords);
+        setTotal(count);
+        setCustomerMap(new Map(customers.map((c) => [c.id!, c])));
+        setLoading(false);
+      },
+    );
+  }, [refresh, page, reloadNonce]);
+
+  function handleSaved() {
+    setSelectedOrder(null);
+    setSelectedCustomer(null);
+    setPage(1);
+    setReloadNonce((n) => n + 1);
+  }
 
   return (
     <div>
@@ -31,7 +50,7 @@ export function OrdersPage() {
 
       <PageHeader
         title="Đơn hàng"
-        subtitle="Lịch sử ghi đơn và đối soát doanh thu"
+        subtitle="Lịch sử ghi đơn và đối soát doanh thu — bấm dòng để xem/cập nhật thanh toán"
         action={
           <Link to="/orders/new">
             <PrimaryButton>
@@ -80,7 +99,14 @@ export function OrdersPage() {
                   const customer = customerMap.get(o.customer_id);
                   const debt = orderDebt(o);
                   return (
-                    <tr key={o.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <tr
+                      key={o.id}
+                      className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40"
+                      onClick={() => {
+                        setSelectedOrder(o);
+                        setSelectedCustomer(customer ?? null);
+                      }}
+                    >
                       <td className="px-4 py-3 whitespace-nowrap text-slate-500">
                         {new Date(o.created_at).toLocaleDateString('vi-VN')}
                       </td>
@@ -89,6 +115,7 @@ export function OrdersPage() {
                           <Link
                             to={`/customers/${customer.id}`}
                             className="font-medium text-brand-600 hover:underline"
+                            onClick={(e) => e.stopPropagation()}
                           >
                             {customer.name}
                           </Link>
@@ -96,7 +123,9 @@ export function OrdersPage() {
                           '—'
                         )}
                       </td>
-                      <td className="px-4 py-3">{o.product_name}</td>
+                      <td className="max-w-[200px] truncate px-4 py-3" title={o.product_name}>
+                        {o.product_name}
+                      </td>
                       <td className="px-4 py-3 text-right tabular-nums">{o.quantity}</td>
                       <td className="px-4 py-3 text-right tabular-nums font-medium">
                         {formatMoney(orderRevenue(o))}
@@ -133,7 +162,20 @@ export function OrdersPage() {
               </tbody>
             </table>
           </div>
+          <Pagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
         </Panel>
+      )}
+
+      {selectedOrder && selectedCustomer && (
+        <OrderPaymentDialog
+          order={selectedOrder}
+          customer={selectedCustomer}
+          onClose={() => {
+            setSelectedOrder(null);
+            setSelectedCustomer(null);
+          }}
+          onSaved={handleSaved}
+        />
       )}
     </div>
   );

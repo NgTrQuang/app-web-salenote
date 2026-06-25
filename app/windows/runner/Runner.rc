@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "so_khach_app" "\0"
+            VALUE "FileDescription", "Salenote" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "so_khach_app" "\0"
+            VALUE "InternalName", "Salenote" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "so_khach_app.exe" "\0"
-            VALUE "ProductName", "so_khach_app" "\0"
+            VALUE "OriginalFilename", "Salenote.exe" "\0"
+            VALUE "ProductName", "Salenote" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

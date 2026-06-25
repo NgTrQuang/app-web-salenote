@@ -7,6 +7,7 @@ import {
   BarChart3,
   MessageSquare,
   CloudUpload,
+  Bell,
 } from 'lucide-react';
 
 export interface GuideSection {
@@ -120,5 +121,19 @@ Vào **Cài đặt → Sao lưu & khôi phục**:
 • **Xuất CSV** — khách (kèm nguồn), liên hệ, đơn hàng
 
 Nên backup ít nhất 1 lần/tuần.`,
+  },
+  {
+    icon: Bell,
+    iconColor: 'text-amber-700 dark:text-amber-400',
+    iconBg: 'bg-amber-100 dark:bg-amber-950/50',
+    title: '8. Thông báo nhắc nhở',
+    body: `**Cài đặt → Thông báo nhắc nhở** (đồng bộ app mobile):
+
+• **Hàng ngày** — giờ tuỳ chọn: khách cần liên hệ (Mới/Tiềm năng/Nóng)
+• **Tổng kết tuần** (Thứ Hai) — doanh số 7 ngày, số đơn
+• **Tổng kết tháng** (ngày 1) — liên hệ & chốt đơn tháng trước
+• **Tri ân & ưu đãi** (Thứ Sáu) — khách tiềm năng lâu chưa chăm, khách cũ nên gửi quà
+
+Trên **web**: nhắc khi tab Salenote đang mở (hoặc PWA đã cài). **App mobile**: nhắc nền cả khi đóng app.`,
   },
 ];

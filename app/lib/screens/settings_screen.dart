@@ -6,7 +6,11 @@ import '../services/backup_service.dart';
 import '../services/customer_service.dart';
 import '../services/notification_service.dart';
 import '../services/pin_service.dart';
+import '../services/shop_settings_service.dart';
 import '../utils/constants.dart';
+import '../widgets/app_drawer.dart';
+import '../widgets/app_logo.dart';
+import '../widgets/instant_switch.dart';
 import 'guide_screen.dart';
 import 'pin_screen.dart';
 import 'splash_screen.dart' show OnboardingScreen;
@@ -29,24 +33,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String? _lastBackupDate;
   String _messageTemplate = AppConstants.defaultMessage;
   bool _templateLoaded = false;
+  bool _shopLoaded = false;
+  final _shopNameCtrl = TextEditingController();
+  final _shopPhoneCtrl = TextEditingController();
   bool _notificationEnabled = false;
   bool _notifLoaded = false;
   int _notifHour = 9;
   int _notifMinute = 0;
   NotifSound _notifSound = NotifSound.defaultSound;
   bool _notifVibrate = true;
+  bool _weeklyDigestEnabled = false;
+  bool _monthlyDigestEnabled = false;
+  bool _loyaltyReminderEnabled = false;
   bool _pinEnabled = false;
   bool _pinLoaded = false;
   ThemeMode _themeMode = ThemeMode.system;
   Locale _locale = const Locale('vi');
+  /// Huỷ kết quả load cũ nếu user đã thao tác switch.
+  int _notifLoadGen = 0;
 
   @override
   void initState() {
     super.initState();
     _loadTemplate();
-    _loadNotifState();
+    _loadShopSettings();
+    _loadNotificationSettings();
     _loadPinState();
-    _loadNotifSettings();
     _loadLastBackup();
     _themeMode = themeModeNotifier.value;
     _locale = localeModeNotifier.value;
@@ -89,10 +101,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         await _loadPinState();
       }
     } else {
-      // Tắt PIN: xoá ngay, không cần xác nhận lại
+      // Tắt PIN: cập nhật UI ngay, rồi xoá trong DB
+      setState(() => _pinEnabled = false);
       await _pinService.removePin();
       if (!mounted) return;
-      setState(() => _pinEnabled = false);
       _showSnack(l.pinDisabled);
     }
   }
@@ -116,32 +128,74 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
   }
 
-  Future<void> _loadNotifState() async {
-    final enabled = await _notifService.isEnabled();
-    if (mounted) setState(() {
-      _notificationEnabled = enabled;
-      _notifLoaded = true;
-    });
+  Future<void> _loadShopSettings() async {
+    final s = await ShopSettingsService().getSettings();
+    if (mounted) {
+      setState(() => _shopLoaded = true);
+      _shopNameCtrl.text = s.shopName;
+      _shopPhoneCtrl.text = s.shopPhone;
+    }
   }
 
-  Future<void> _loadNotifSettings() async {
+  Future<void> _saveShopSettings() async {
+    await ShopSettingsService().saveSettings(
+      shopName: _shopNameCtrl.text,
+      shopPhone: _shopPhoneCtrl.text,
+    );
+    if (mounted) {
+      _showSnack('Đã lưu thông tin cửa hàng trên bill');
+    }
+  }
+
+  @override
+  void dispose() {
+    _shopNameCtrl.dispose();
+    _shopPhoneCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadNotificationSettings() async {
+    final gen = ++_notifLoadGen;
+    final enabled = await _notifService.isEnabled();
     final h = await _notifService.getHour();
     final m = await _notifService.getMinute();
     final s = await _notifService.getSound();
     final v = await _notifService.getVibrate();
-    if (mounted) setState(() {
+    final weekly = await _notifService.isWeeklyEnabled();
+    final monthly = await _notifService.isMonthlyEnabled();
+    final loyalty = await _notifService.isLoyaltyEnabled();
+    if (!mounted || gen != _notifLoadGen) return;
+    setState(() {
+      _notificationEnabled = enabled;
       _notifHour = h;
       _notifMinute = m;
       _notifSound = s;
       _notifVibrate = v;
+      _weeklyDigestEnabled = weekly;
+      _monthlyDigestEnabled = monthly;
+      _loyaltyReminderEnabled = loyalty;
+      _notifLoaded = true;
     });
   }
+
+  void _invalidateNotifLoads() {
+    _notifLoadGen++;
+  }
+
+  String _formatNotifTime() =>
+      '${_notifHour.toString().padLeft(2, '0')}:${_notifMinute.toString().padLeft(2, '0')}';
 
   Future<void> _pickNotifTime() async {
     final picked = await showTimePicker(
       context: context,
       initialTime: TimeOfDay(hour: _notifHour, minute: _notifMinute),
       helpText: 'Chọn giờ nhắc',
+      builder: (context, child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+          child: child!,
+        );
+      },
     );
     if (picked == null || !mounted) return;
     setState(() {
@@ -149,9 +203,71 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _notifMinute = picked.minute;
     });
     await _notifService.saveSettings(
-      hour: _notifHour, minute: _notifMinute,
-      sound: _notifSound, vibrate: _notifVibrate,
+      hour: _notifHour,
+      minute: _notifMinute,
+      sound: _notifSound,
+      vibrate: _notifVibrate,
     );
+    if (mounted) {
+      _showSnack(AppLocalizations.of(context).notifTimeSaved);
+    }
+  }
+
+  Future<void> _toggleWeeklyDigest(bool value) async {
+    _invalidateNotifLoads();
+    final previous = _weeklyDigestEnabled;
+    setState(() => _weeklyDigestEnabled = value);
+    if (value) {
+      final granted = await _notifService.requestPermission();
+      if (!granted && mounted) {
+        setState(() => _weeklyDigestEnabled = previous);
+        _showSnack(AppLocalizations.of(context).notifPermRequired, isError: true);
+        return;
+      }
+    }
+    try {
+      await _notifService.setWeeklyEnabled(value);
+    } catch (_) {
+      if (mounted) setState(() => _weeklyDigestEnabled = previous);
+    }
+  }
+
+  Future<void> _toggleMonthlyDigest(bool value) async {
+    _invalidateNotifLoads();
+    final previous = _monthlyDigestEnabled;
+    setState(() => _monthlyDigestEnabled = value);
+    if (value) {
+      final granted = await _notifService.requestPermission();
+      if (!granted && mounted) {
+        setState(() => _monthlyDigestEnabled = previous);
+        _showSnack(AppLocalizations.of(context).notifPermRequired, isError: true);
+        return;
+      }
+    }
+    try {
+      await _notifService.setMonthlyEnabled(value);
+    } catch (_) {
+      if (mounted) setState(() => _monthlyDigestEnabled = previous);
+    }
+  }
+
+  Future<void> _toggleLoyaltyReminder(bool value) async {
+    _invalidateNotifLoads();
+    final previous = _loyaltyReminderEnabled;
+    setState(() => _loyaltyReminderEnabled = value);
+    if (value) {
+      final granted = await _notifService.requestPermission();
+      if (!granted && mounted) {
+        setState(() => _loyaltyReminderEnabled = previous);
+        _showSnack(AppLocalizations.of(context).notifPermRequired, isError: true);
+        return;
+      }
+    }
+    try {
+      await _notifService.setLoyaltyEnabled(value);
+    } catch (_) {
+      if (mounted) setState(() => _loyaltyReminderEnabled = previous);
+    }
   }
 
   Future<void> _pickNotifSound() async {
@@ -211,17 +327,58 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _toggleNotification(bool value) async {
+    _invalidateNotifLoads();
     final l = AppLocalizations.of(context);
+    final previous = _notificationEnabled;
+    setState(() => _notificationEnabled = value);
+
     if (value) {
       final granted = await _notifService.requestPermission();
       if (!granted && mounted) {
+        setState(() => _notificationEnabled = previous);
         _showSnack(l.notifPermRequired, isError: true);
         return;
       }
     }
-    await _notifService.setEnabled(value);
-    if (mounted) setState(() => _notificationEnabled = value);
-    _showSnack(value ? l.notifEnabled : l.notifDisabled);
+    try {
+      await _notifService.setEnabled(value);
+    } catch (_) {
+      if (mounted) setState(() => _notificationEnabled = previous);
+      return;
+    }
+    if (!mounted) return;
+
+    if (value) {
+      final fired = await _notifService.fireDueRemindersNow();
+      if (fired > 0) {
+        _showSnack('Đã gửi $fired nhắc nhở hôm nay');
+        return;
+      }
+    }
+    _showSnack(value
+        ? l.notifEnabledAt(_notifHour, _notifMinute)
+        : l.notifDisabled);
+  }
+
+  Future<void> _fireDueRemindersNow() async {
+    final granted = await _notifService.requestPermission();
+    if (!granted && mounted) {
+      _showSnack(AppLocalizations.of(context).notifPermRequired, isError: true);
+      return;
+    }
+    final fired = await _notifService.fireDueRemindersNow();
+    if (!mounted) return;
+    if (fired > 0) {
+      _showSnack('Đã gửi $fired thông báo nhắc nhở');
+    } else {
+      final now = DateTime.now();
+      final scheduled = DateTime(now.year, now.month, now.day, _notifHour, _notifMinute);
+      _showSnack(
+        now.isBefore(scheduled)
+            ? 'Chưa đến giờ nhắc (${_formatNotifTime()})'
+            : 'Hôm nay đã gửi nhắc rồi hoặc chưa bật loại nhắc phù hợp',
+      );
+    }
   }
 
   Future<void> _editTemplate() async {
@@ -353,6 +510,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final bg = theme.scaffoldBackgroundColor;
     return Scaffold(
       backgroundColor: bg,
+      drawer: const AppDrawer(current: 'settings'),
       appBar: AppBar(
         title: Text(l.settingsTitle,
             style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -560,7 +718,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                       _notifLoaded
-                          ? Switch(
+                          ? InstantSwitch(
                               value: _notificationEnabled,
                               onChanged: _toggleNotification,
                             )
@@ -572,8 +730,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
 
-                // Sub-options: only show when enabled
-                if (_notificationEnabled) ...[
+                // Giờ nhắc & tuỳ chọn — luôn hiển thị để tránh nhảy layout khi bật/tắt
+                if (_notifLoaded) ...[
                   Divider(height: 1, indent: 56, endIndent: 16,
                       color: theme.colorScheme.outlineVariant.withAlpha(80)),
 
@@ -618,7 +776,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
-                              '${_notifHour.toString().padLeft(2, '0')}:${_notifMinute.toString().padLeft(2, '0')}',
+                              _formatNotifTime(),
                               style: TextStyle(
                                 fontWeight: FontWeight.w700,
                                 fontSize: 15,
@@ -717,7 +875,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             ],
                           ),
                         ),
-                        Switch(
+                        InstantSwitch(
                           value: _notifVibrate,
                           onChanged: _toggleVibrate,
                         ),
@@ -745,8 +903,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'Thông minh: chỉ nhắc khi bạn chưa mở app & có khách cần liên hệ. '
-                              'Khi mở app lại, lịch nhắc tự cập nhật theo dữ liệu mới nhất.',
+                              'Nội dung nhắc cập nhật khi bạn mở app. '
+                              'Giờ nhắc áp dụng cho tất cả loại thông báo. '
+                              'Mở lại app sau giờ nhắc nếu không thấy thông báo nền.',
                               style: TextStyle(
                                   fontSize: 11,
                                   color: theme.colorScheme.primary,
@@ -758,33 +917,141 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
 
-                  // Nút gửi thử
+                  // Nút gửi thử / gửi nhắc hôm nay
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-                    child: SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () async {
-                          await _notifService.sendTestNotification();
-                          if (mounted) {
-                            _showSnack('Đã gửi thông báo thử! Kiểm tra thanh thông báo.');
-                          }
-                        },
-                        icon: const Icon(Icons.send_rounded, size: 16),
-                        label: const Text('Gửi thử thông báo'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: theme.colorScheme.primary,
-                          side: BorderSide(
-                              color: theme.colorScheme.primary.withAlpha(80)),
-                          padding: const EdgeInsets.symmetric(vertical: 10),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10)),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () async {
+                              await _notifService.sendTestNotification();
+                              if (mounted) {
+                                _showSnack(
+                                    'Đã gửi thông báo thử! Kiểm tra thanh thông báo.');
+                              }
+                            },
+                            icon: const Icon(Icons.send_rounded, size: 16),
+                            label: const Text('Gửi thử'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: theme.colorScheme.primary,
+                              side: BorderSide(
+                                  color: theme.colorScheme.primary.withAlpha(80)),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () async => _fireDueRemindersNow(),
+                            icon: const Icon(Icons.notifications_active_rounded,
+                                size: 16),
+                            label: const Text('Gửi nhắc hôm nay'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: theme.colorScheme.primary,
+                              side: BorderSide(
+                                  color: theme.colorScheme.primary.withAlpha(80)),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10)),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ],
+            ),
+          ),
+
+          // ── Business reminders (cùng card — tránh layout nhảy giữa 2 card)
+          const SizedBox(height: 12),
+          _SectionLabel('Nhắc nhở kinh doanh'),
+          const SizedBox(height: 10),
+          Card(
+            margin: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Column(
+              children: [
+                _NotifToggleTile(
+                  icon: Icons.calendar_view_week_rounded,
+                  iconColor: Colors.indigo.shade700,
+                  title: l.weeklyDigest,
+                  subtitle: l.weeklyDigestSub,
+                  value: _weeklyDigestEnabled,
+                  onChanged: _toggleWeeklyDigest,
+                ),
+                Divider(height: 1, indent: 56, endIndent: 16,
+                    color: theme.colorScheme.outlineVariant.withAlpha(80)),
+                _NotifToggleTile(
+                  icon: Icons.calendar_month_rounded,
+                  iconColor: Colors.teal.shade700,
+                  title: l.monthlyDigest,
+                  subtitle: l.monthlyDigestSub,
+                  value: _monthlyDigestEnabled,
+                  onChanged: _toggleMonthlyDigest,
+                ),
+                Divider(height: 1, indent: 56, endIndent: 16,
+                    color: theme.colorScheme.outlineVariant.withAlpha(80)),
+                _NotifToggleTile(
+                  icon: Icons.card_giftcard_rounded,
+                  iconColor: Colors.pink.shade700,
+                  title: l.loyaltyReminder,
+                  subtitle: l.loyaltyReminderSub,
+                  value: _loyaltyReminderEnabled,
+                  onChanged: _toggleLoyaltyReminder,
+                  isLast: true,
+                ),
+              ],
+            ),
+          ),
+
+          // ── Shop info for bills ─────────────────────────────
+          const SizedBox(height: 28),
+          _SectionLabel('Thông tin trên bill'),
+          const SizedBox(height: 10),
+          Card(
+            margin: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Hiển thị trên phiếu bán hàng PDF — tên shop và SĐT liên hệ.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _shopNameCtrl,
+                    enabled: _shopLoaded,
+                    decoration: const InputDecoration(
+                      labelText: 'Tên cửa hàng / shop',
+                      prefixIcon: Icon(Icons.store_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _shopPhoneCtrl,
+                    enabled: _shopLoaded,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: 'SĐT shop',
+                      prefixIcon: Icon(Icons.phone_outlined),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: _shopLoaded ? _saveShopSettings : null,
+                    child: const Text('Lưu thông tin bill'),
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -1245,36 +1512,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: Image.asset(
-                      'assets/images/logo.png',
-                      width: 48,
-                      height: 48,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(
-                        width: 48,
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.primary,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(Icons.book_rounded,
-                            color: Colors.white, size: 26),
-                      ),
-                    ),
-                  ),
+                  const AppLogo(size: 48, borderRadius: 12),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(l.appName,
+                        Text(l.appNameFull,
                             style: const TextStyle(
                                 fontWeight: FontWeight.w700, fontSize: 16)),
                         const SizedBox(height: 3),
                         Text(
-                          '${l.version} 2.2.0',
+                          '${l.version} 2.3.1',
                           style: TextStyle(
                               fontSize: 13, color: Colors.grey.shade500),
                         ),
@@ -1362,6 +1611,62 @@ class _SectionLabel extends StatelessWidget {
         fontWeight: FontWeight.w700,
         color: Colors.grey.shade500,
         letterSpacing: 1.0,
+      ),
+    );
+  }
+}
+
+class _NotifToggleTile extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final bool isLast;
+
+  const _NotifToggleTile({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+    this.isLast = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 12, 16, isLast ? 14 : 12),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: iconColor.withAlpha(30),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: iconColor, size: 20),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 14)),
+                const SizedBox(height: 2),
+                Text(subtitle,
+                    style: TextStyle(
+                        fontSize: 12, color: Colors.grey.shade500)),
+              ],
+            ),
+          ),
+          InstantSwitch(value: value, onChanged: onChanged),
+        ],
       ),
     );
   }

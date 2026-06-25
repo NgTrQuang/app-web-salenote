@@ -26,12 +26,14 @@ export function Panel({
   children,
   className = '',
   title,
+  subtitle,
   action,
   noPadding,
 }: {
   children: ReactNode;
   className?: string;
   title?: string;
+  subtitle?: string;
   action?: ReactNode;
   noPadding?: boolean;
 }) {
@@ -41,9 +43,14 @@ export function Panel({
     >
       {(title || action) && (
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800">
-          {title && (
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-white">{title}</h2>
-          )}
+          <div>
+            {title && (
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-white">{title}</h2>
+            )}
+            {subtitle && (
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>
+            )}
+          </div>
           {action}
         </div>
       )}

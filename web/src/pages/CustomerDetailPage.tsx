@@ -34,6 +34,10 @@ import { getOrdersByCustomer } from '@/lib/orderService';
 import { formatMoney } from '@/lib/money';
 import { formatDateTime, relativeTime, nextActionLabel } from '@/lib/dateUtils';
 import { MESSAGE_TEMPLATES } from '@/lib/constants';
+import { CustomerIntelligencePanel } from '@/components/CustomerIntelligencePanel';
+import { BillPreviewDialog } from '@/components/BillPreviewDialog';
+import { buildCustomerIntelligence } from '@/lib/insightsService';
+import { formatAddressOnly, formatShippingInfo } from '@/lib/shippingUtils';
 import { useDataRefresh } from '@/hooks/useDataRefresh';
 
 export function CustomerDetailPage() {
@@ -46,6 +50,7 @@ export function CustomerDetailPage() {
   const [customMsg, setCustomMsg] = useState('');
   const [showMsg, setShowMsg] = useState(false);
   const [showOrderForm, setShowOrderForm] = useState(false);
+  const [billOrder, setBillOrder] = useState<Order | null>(null);
   const [toast, setToast] = useState('');
 
   async function reloadCustomerData() {
@@ -97,6 +102,21 @@ export function CustomerDetailPage() {
     navigate('/customers', { replace: true });
   }
 
+  async function copyAddress() {
+    const text = formatAddressOnly(customer);
+    if (!text) {
+      showToastMsg('Chưa có địa chỉ');
+      return;
+    }
+    await navigator.clipboard.writeText(text);
+    showToastMsg('Đã sao chép địa chỉ');
+  }
+
+  async function copyShippingForOrder(order: Order) {
+    await navigator.clipboard.writeText(formatShippingInfo(customer, order));
+    showToastMsg('Đã sao chép thông tin giao hàng');
+  }
+
   async function copyMessage(text: string) {
     await navigator.clipboard.writeText(text);
     showToastMsg('Đã sao chép tin nhắn');
@@ -106,6 +126,7 @@ export function CustomerDetailPage() {
 
   const warranty = warrantyDaysLeft(customer);
   const salesSummary = summarizeOrders(orders);
+  const intelligence = buildCustomerIntelligence(customer, orders);
 
   return (
     <div>
@@ -149,6 +170,26 @@ export function CustomerDetailPage() {
                   </dd>
                 </div>
               )}
+              <div>
+                <dt className="text-slate-500">Địa chỉ giao hàng</dt>
+                <dd className="mt-0.5">
+                  {customer.address ? (
+                    <div className="flex items-start gap-2">
+                      <span className="font-medium">{customer.address}</span>
+                      <button
+                        type="button"
+                        onClick={() => void copyAddress()}
+                        className="shrink-0 rounded p-1 text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-950/30"
+                        title="Sao chép địa chỉ"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="text-slate-400">Chưa có — thêm khi sửa khách</span>
+                  )}
+                </dd>
+              </div>
               <div>
                 <dt className="text-slate-500">Nguồn khách</dt>
                 <dd className="mt-0.5 font-medium">{sourceLabel(customer.source)}</dd>
@@ -217,8 +258,10 @@ export function CustomerDetailPage() {
             </div>
           </Panel>
 
+          {orders.length > 0 && <CustomerIntelligencePanel intel={intelligence} />}
+
           {orders.length > 0 && (
-            <Panel title="Tổng kết bán hàng">
+            <Panel title="Tổng kết bán hàng (tóm tắt)">
               <dl className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <dt className="text-slate-500">Doanh thu</dt>
@@ -263,7 +306,8 @@ export function CustomerDetailPage() {
                       <th className="px-4 py-2 text-left">SP</th>
                       <th className="px-4 py-2 text-right">Doanh thu</th>
                       <th className="px-4 py-2 text-right">Lời</th>
-                      <th className="px-4 py-2">TT</th>
+                      <th className="px-4 py-2 text-left">TT</th>
+                      <th className="px-4 py-2 text-right">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -288,6 +332,26 @@ export function CustomerDetailPage() {
                               nợ {formatMoney(orderDebt(o))}
                             </span>
                           )}
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          <div className="flex justify-end gap-1">
+                            <button
+                              type="button"
+                              title="Sao chép giao hàng"
+                              onClick={() => void copyShippingForOrder(o)}
+                              className="rounded p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                            >
+                              <Copy className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Xem bill"
+                              onClick={() => setBillOrder(o)}
+                              className="rounded p-1.5 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                            >
+                              <Receipt className="h-4 w-4" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -389,6 +453,14 @@ export function CustomerDetailPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {billOrder && (
+        <BillPreviewDialog
+          customer={customer}
+          order={billOrder}
+          onClose={() => setBillOrder(null)}
+        />
       )}
 
       {toast && <Toast message={toast} />}

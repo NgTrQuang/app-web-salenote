@@ -5,6 +5,7 @@ import '../services/order_service.dart';
 import '../services/product_service.dart';
 import '../utils/constants.dart';
 import '../utils/money.dart';
+import 'product_picker_field.dart';
 
 class OrderFormSheet extends StatefulWidget {
   final Customer customer;
@@ -44,6 +45,9 @@ class _OrderFormSheetState extends State<OrderFormSheet> {
   final _commCtrl = TextEditingController();
   final _paidCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
+  final _shipNameCtrl = TextEditingController();
+  final _shipPhoneCtrl = TextEditingController();
+  final _shipAddressCtrl = TextEditingController();
   String _paymentStatus = 'paid';
   bool _markClosed = true;
   bool _saving = false;
@@ -51,6 +55,9 @@ class _OrderFormSheetState extends State<OrderFormSheet> {
   @override
   void initState() {
     super.initState();
+    _shipNameCtrl.text = widget.customer.name;
+    _shipPhoneCtrl.text = widget.customer.phone ?? '';
+    _shipAddressCtrl.text = widget.customer.address ?? '';
     _loadProducts();
     if (widget.customer.product != null) {
       _nameCtrl.text = widget.customer.product!;
@@ -87,6 +94,15 @@ class _OrderFormSheetState extends State<OrderFormSheet> {
   double get _cost => parseMoneyInput(_costCtrl.text);
   double get _comm => parseMoneyInput(_commCtrl.text);
   double get _revenue => _qty * _sell;
+  double get _profit => _qty * (_sell - _cost);
+  double get _commission => _qty * _comm;
+  double get _paid =>
+      _paymentStatus == 'paid'
+          ? _revenue
+          : _paymentStatus == 'unpaid'
+              ? 0
+              : parseMoneyInput(_paidCtrl.text);
+  double get _debt => (_revenue - _paid).clamp(0, double.infinity);
 
   Product? get _selectedProduct {
     if (_productId == null) return null;
@@ -139,8 +155,15 @@ class _OrderFormSheetState extends State<OrderFormSheet> {
         unitCost: _cost,
         unitCommission: _comm,
         paymentStatus: _paymentStatus,
-        paidAmount: _paymentStatus == 'partial' ? parseMoneyInput(_paidCtrl.text) : _revenue,
+        paidAmount: _paymentStatus == 'partial'
+            ? parseMoneyInput(_paidCtrl.text)
+            : _paymentStatus == 'unpaid'
+                ? 0
+                : _revenue,
         note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+        shippingName: _shipNameCtrl.text.trim(),
+        shippingPhone: _shipPhoneCtrl.text.trim().isEmpty ? null : _shipPhoneCtrl.text.trim(),
+        shippingAddress: _shipAddressCtrl.text.trim().isEmpty ? null : _shipAddressCtrl.text.trim(),
         markCustomerClosed: _markClosed,
       );
       widget.onSaved();
@@ -164,6 +187,9 @@ class _OrderFormSheetState extends State<OrderFormSheet> {
     _commCtrl.dispose();
     _paidCtrl.dispose();
     _noteCtrl.dispose();
+    _shipNameCtrl.dispose();
+    _shipPhoneCtrl.dispose();
+    _shipAddressCtrl.dispose();
     super.dispose();
   }
 
@@ -181,21 +207,54 @@ class _OrderFormSheetState extends State<OrderFormSheet> {
           children: [
             Text('Ghi đơn — ${widget.customer.name}',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            Card(
+              margin: EdgeInsets.zero,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text('Thông tin giao hàng',
+                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Mặc định từ hồ sơ khách — sửa nếu giao địa chỉ khác. Lưu cố định trên đơn.',
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: _shipNameCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Người nhận',
+                        isDense: true,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _shipPhoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(labelText: 'SĐT giao hàng', isDense: true),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: _shipAddressCtrl,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        labelText: 'Địa chỉ giao hàng',
+                        alignLabelWithHint: true,
+                        isDense: true,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 16),
             if (_products.isNotEmpty) ...[
-              DropdownButtonFormField<int?>(
+              ProductPickerField(
+                products: _products,
                 value: _productId,
-                decoration: const InputDecoration(labelText: 'Chọn từ danh mục'),
-                items: [
-                  const DropdownMenuItem(value: null, child: Text('— Nhập tay —')),
-                  ..._products.map((prod) => DropdownMenuItem(
-                        value: prod.id,
-                        child: Text(
-                          '${prod.name}${prod.trackInventory ? ' (kho: ${prod.stockQuantity})' : ''}',
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      )),
-                ],
                 onChanged: _selectProduct,
               ),
               if (p != null && p.trackInventory)
@@ -219,6 +278,7 @@ class _OrderFormSheetState extends State<OrderFormSheet> {
               controller: _nameCtrl,
               decoration: const InputDecoration(labelText: 'Tên sản phẩm *'),
               onChanged: (_) => setState(() => _productId = null),
+              scrollPadding: const EdgeInsets.all(20),
             ),
             const SizedBox(height: 12),
             Row(
@@ -277,6 +337,7 @@ class _OrderFormSheetState extends State<OrderFormSheet> {
                 controller: _paidCtrl,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: 'Đã thu'),
+                onChanged: (_) => setState(() {}),
               ),
             ],
             const SizedBox(height: 12),
@@ -292,15 +353,30 @@ class _OrderFormSheetState extends State<OrderFormSheet> {
               title: const Text('Đánh dấu khách "Đã chốt"', style: TextStyle(fontSize: 14)),
             ),
             Card(
-              color: Theme.of(context).colorScheme.primaryContainer.withAlpha(60),
+              color: Theme.of(context).colorScheme.surfaceVariant.withAlpha(120),
               child: Padding(
                 padding: const EdgeInsets.all(12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                child: Column(
                   children: [
-                    _SumItem('DT', formatMoney(_revenue)),
-                    _SumItem('Lời', formatMoney(_qty * (_sell - _cost))),
-                    _SumItem('HH', formatMoney(_qty * _comm)),
+                    Row(
+                      children: [
+                        Expanded(child: _SumItem('Doanh thu', formatMoney(_revenue))),
+                        Expanded(child: _SumItem('Lợi nhuận', formatMoney(_profit), Colors.green.shade700)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(child: _SumItem('Hoa hồng', formatMoney(_commission))),
+                        Expanded(
+                          child: _SumItem(
+                            'Công nợ',
+                            formatMoney(_debt),
+                            _debt > 0 ? Colors.red : null,
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -326,14 +402,23 @@ class _OrderFormSheetState extends State<OrderFormSheet> {
 class _SumItem extends StatelessWidget {
   final String label;
   final String value;
-  const _SumItem(this.label, this.value);
+  final Color? color;
+  const _SumItem(this.label, this.value, [this.color]);
 
   @override
   Widget build(BuildContext context) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+        Text(
+          value,
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+            color: color ?? Theme.of(context).colorScheme.primary,
+          ),
+        ),
       ],
     );
   }
