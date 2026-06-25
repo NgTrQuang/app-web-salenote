@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { Breadcrumbs } from '@/components/CustomerTable';
 import { PageHeader, Panel } from '@/components/ui';
-import { GUIDE_SECTIONS } from '@/lib/guideContent';
+import { GUIDE_SECTIONS, GUIDE_VERSION } from '@/lib/guideContent';
 import { APP_NAME, APP_TAGLINE } from '@/lib/constants';
 
 export function GuidePage() {
@@ -14,7 +14,7 @@ export function GuidePage() {
 
       <PageHeader
         title="Hướng dẫn sử dụng"
-        subtitle="Cách dùng Salenote hiệu quả trên web"
+        subtitle={`Salenote v${GUIDE_VERSION} — web & app đồng bộ tính năng`}
       />
 
       <div className="mb-8 overflow-hidden rounded-xl bg-gradient-to-br from-brand-600 to-brand-700 p-6 text-white shadow-md lg:p-8">
@@ -26,8 +26,8 @@ export function GuidePage() {
             <h2 className="text-xl font-bold">{APP_NAME}</h2>
             <p className="mt-1 text-sm text-brand-100">{APP_TAGLINE}</p>
             <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/90">
-              Sổ sale cá nhân — chăm khách, ghi đơn có tiền, biết doanh thu theo sản phẩm và nguồn.
-              Dữ liệu khách ↔ sản phẩm ↔ đơn hàng liên kết trên máy bạn.
+              Sổ sale cá nhân v{GUIDE_VERSION} — chăm khách, ghi đơn có tiền, snapshot giao hàng, bill PDF,
+              Trợ lý Sale gợi ý việc làm. Dữ liệu khách ↔ sản phẩm ↔ đơn hàng trên máy bạn.
             </p>
           </div>
         </div>
@@ -42,12 +42,20 @@ export function GuidePage() {
       <Panel title="Mẹo nhanh" className="mt-8">
         <ul className="list-inside list-disc space-y-2 text-sm text-slate-600 dark:text-slate-400">
           <li>
-            Tạo <strong>Sản phẩm</strong> trước, rồi thêm khách kèm <strong>nguồn</strong> và SP quan tâm từ danh mục.
+            Tạo <strong>Sản phẩm</strong> trước, thêm khách kèm <strong>nguồn</strong> và <strong>địa chỉ mặc định</strong>.
           </li>
-          <li>Sáng mỗi ngày mở <strong>Bảng điều khiển</strong> — xử lý khách cần liên hệ và xem doanh số hôm nay.</li>
-          <li><strong>Ghi đơn</strong> thay vì chỉ đánh dấu chốt — dashboard và thống kê lấy số từ đơn thực.</li>
-          <li>Xem <strong>Doanh thu theo nguồn</strong> trong Thống kê để biết kênh nào hiệu quả.</li>
-          <li>Backup JSON mỗi tuần trong <strong>Cài đặt</strong>.</li>
+          <li>
+            Mở <strong>Bảng điều khiển</strong> sáng — xem <strong>Trợ lý Sale</strong> (việc nên làm, cảnh báo) trước khi nhắn khách.
+          </li>
+          <li>
+            <strong>Ghi đơn</strong> kèm giao hàng — địa chỉ snapshot trên đơn; dùng <strong>Copy ship</strong> / <strong>Bill PDF</strong> khi giao hàng.
+          </li>
+          <li>
+            Cấu hình <strong>tên shop trên bill</strong> trong Cài đặt trước khi gửi PDF cho khách.
+          </li>
+          <li>
+            Xem <strong>Doanh thu theo nguồn</strong> trong Thống kê; backup JSON mỗi tuần.
+          </li>
         </ul>
       </Panel>
     </div>
