@@ -3,7 +3,7 @@ import { SETTING_KEYS, STATUS_LABELS, sourceLabel } from './constants';
 import type { BackupData } from '@/types';
 import { orderCommission, orderDebt, orderProfit, orderRevenue } from '@/types';
 
-const BACKUP_VERSION = 2;
+const BACKUP_VERSION = 3;
 
 export async function downloadBackup(): Promise<void> {
   const data = await exportAll();
@@ -13,6 +13,7 @@ export async function downloadBackup(): Promise<void> {
     interactions: data.interactions,
     products: data.products,
     orders: data.orders,
+    expenses: data.expenses,
   };
   const json = JSON.stringify(payload, null, 2);
   const blob = new Blob([json], { type: 'application/json' });
@@ -37,6 +38,7 @@ export async function restoreFromFile(file: File): Promise<void> {
     interactions: data.interactions,
     products: data.products ?? [],
     orders: data.orders ?? [],
+    expenses: data.expenses ?? [],
   });
 }
 

@@ -7,7 +7,11 @@ import '../services/customer_service.dart';
 import '../services/order_service.dart';
 import '../services/insights_service.dart';
 import '../widgets/insights_panels.dart';
+import '../widgets/sales_dashboard.dart';
+import '../screens/debts_screen.dart';
+import '../screens/all_customers_screen.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/expense_panel.dart';
 import '../utils/money.dart';
 
 class StatsScreen extends StatefulWidget {
@@ -109,8 +113,8 @@ class _StatsScreenState extends State<StatsScreen> {
         backgroundColor: bg,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
-        title: Text(l.statsTitle,
-            style: const TextStyle(fontWeight: FontWeight.w700)),
+        title: const Text('Tiền của tôi',
+            style: TextStyle(fontWeight: FontWeight.w700)),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -133,13 +137,38 @@ class _StatsScreenState extends State<StatsScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  RevenueInsightPanel(insights: _revenueInsights),
+                  RevenueInsightPanel(
+                    insights: _revenueInsights,
+                    onAction: (route) {
+                      switch (route) {
+                        case RevenueInsightRoute.debts:
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const DebtsScreen()),
+                          );
+                          break;
+                        case RevenueInsightRoute.customers:
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                                builder: (_) => const AllCustomersScreen()),
+                          );
+                          break;
+                        default:
+                          break;
+                      }
+                    },
+                  ),
                   const SizedBox(height: 16),
 
                   if (_salesSummary != null) ...[
                     SalesDashboard(
                       title: 'Doanh số — $monthLabel',
                       summary: _salesSummary!,
+                    ),
+                    const SizedBox(height: 16),
+                    ExpensePanel(
+                      date: _selectedMonth,
+                      grossProfit: _salesSummary!.profit,
                     ),
                     const SizedBox(height: 20),
                   ],

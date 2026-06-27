@@ -72,6 +72,58 @@ export async function getAllCustomers(): Promise<Customer[]> {
   return db.customers.orderBy('next_action_at').toArray();
 }
 
+export interface CustomerPageFilters {
+  query?: string;
+  status?: CustomerStatus | 'all';
+  source?: string | 'all' | '_none';
+}
+
+function customerMatchesFilters(c: Customer, filters: CustomerPageFilters): boolean {
+  const status = filters.status ?? 'all';
+  const source = filters.source ?? 'all';
+  if (status !== 'all' && c.status !== status) return false;
+  if (source === '_none') {
+    if (c.source) return false;
+  } else if (source !== 'all' && c.source !== source) {
+    return false;
+  }
+  const q = filters.query?.trim().toLowerCase();
+  if (!q) return true;
+  return (
+    c.name.toLowerCase().includes(q) ||
+    (c.phone?.toLowerCase().includes(q) ?? false) ||
+    (c.address?.toLowerCase().includes(q) ?? false) ||
+    (c.product?.toLowerCase().includes(q) ?? false)
+  );
+}
+
+function orderedCustomerQuery(filters: CustomerPageFilters) {
+  return db.customers.orderBy('next_action_at').filter((c) => customerMatchesFilters(c, filters));
+}
+
+export async function countAllCustomers(): Promise<number> {
+  return db.customers.count();
+}
+
+export async function countCustomers(filters: CustomerPageFilters = {}): Promise<number> {
+  return orderedCustomerQuery(filters).count();
+}
+
+export async function getCustomersPaged(
+  page: number,
+  pageSize: number,
+  filters: CustomerPageFilters = {},
+): Promise<Customer[]> {
+  const offset = (page - 1) * pageSize;
+  return orderedCustomerQuery(filters).offset(offset).limit(pageSize).toArray();
+}
+
+export async function getCustomersByIds(ids: number[]): Promise<Customer[]> {
+  const unique = [...new Set(ids.filter((id) => id > 0))];
+  if (unique.length === 0) return [];
+  return db.customers.where('id').anyOf(unique).toArray();
+}
+
 export async function getOverdueCount(now = Date.now()): Promise<number> {
   const cutoff = now - 3 * 86400000;
   return db.customers

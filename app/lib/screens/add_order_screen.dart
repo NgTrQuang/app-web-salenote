@@ -3,8 +3,7 @@ import '../models/customer.dart';
 import '../services/customer_service.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/order_form_sheet.dart';
-
-const _pageSize = 20;
+import '../widgets/infinite_scroll.dart';
 
 /// Tương đương web /orders/new
 class AddOrderScreen extends StatefulWidget {
@@ -22,51 +21,81 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
   List<Customer> _customers = [];
   Customer? _selected;
   bool _loading = true;
+  bool _loadingMore = false;
   String _query = '';
   int _page = 1;
+  int _total = 0;
+  final _scrollCtrl = ScrollController();
+  final _loadGate = LoadMoreGate();
+
+  bool get _hasMore => _customers.length < _total;
 
   @override
   void initState() {
     super.initState();
     _selected = widget.initialCustomer;
+    bindScrollLoadMore(
+      _scrollCtrl,
+      hasMore: () => _hasMore && !_loading && !_loadingMore,
+      onLoadMore: _loadMore,
+      gate: _loadGate,
+    );
     _load();
   }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _scrollCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
-    final list = await _customerService.getAllCustomers();
+    _page = 1;
+    setState(() => _loading = true);
+    final list = await _customerService.getCustomersPaged(
+      page: _page,
+      pageSize: kDefaultPageSize,
+      query: _query,
+    );
+    final total = await _customerService.countCustomers(query: _query);
     if (!mounted) return;
     setState(() {
       _customers = list;
+      _total = total;
       _loading = false;
-      if (_selected == null && list.isNotEmpty) {
-        _selected = list.first;
+      if (_selected == null && _customers.isNotEmpty) {
+        _selected = _customers.first;
       }
     });
+    ensureScrollFill(
+      controller: _scrollCtrl,
+      hasMore: _hasMore,
+      onLoadMore: _loadMore,
+    );
   }
 
-  List<Customer> get _filtered {
-    final q = _query.trim().toLowerCase();
-    if (q.isEmpty) return _customers;
-    return _customers
-        .where((c) =>
-            c.name.toLowerCase().contains(q) ||
-            (c.phone?.toLowerCase().contains(q) ?? false) ||
-            (c.product?.toLowerCase().contains(q) ?? false))
-        .toList();
-  }
-
-  int get _totalPages => (_filtered.length / _pageSize).ceil().clamp(1, 999999);
-
-  List<Customer> get _pageItems {
-    final safePage = _page.clamp(1, _totalPages);
-    final start = (safePage - 1) * _pageSize;
-    return _filtered.skip(start).take(_pageSize).toList();
+  Future<void> _loadMore() async {
+    if (!_hasMore || _loading || _loadingMore) return;
+    setState(() => _loadingMore = true);
+    final nextPage = _page + 1;
+    final list = await _customerService.getCustomersPaged(
+      page: nextPage,
+      pageSize: kDefaultPageSize,
+      query: _query,
+    );
+    if (!mounted) return;
+    setState(() {
+      _page = nextPage;
+      final existing = _customers.map((c) => c.id).toSet();
+      _customers.addAll(list.where((c) => !existing.contains(c.id)));
+      _loadingMore = false;
+    });
+    ensureScrollFill(
+      controller: _scrollCtrl,
+      hasMore: _hasMore,
+      onLoadMore: _loadMore,
+    );
   }
 
   Future<void> _openForm() async {
@@ -92,24 +121,23 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final pageItems = _pageItems;
-    final totalPages = _totalPages;
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ghi đơn mới', style: TextStyle(fontWeight: FontWeight.w700)),
+        title: const Text('Ghi đơn mới',
+            style: TextStyle(fontWeight: FontWeight.w700)),
       ),
       drawer: const AppDrawer(current: 'orders'),
-      body: _loading
+      body: _loading && _customers.isEmpty
           ? const Center(child: CircularProgressIndicator())
-          : _customers.isEmpty
+          : _total == 0 && !_loading
               ? Center(
                   child: Padding(
                     padding: const EdgeInsets.all(24),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.people_outline, size: 56, color: Colors.grey.shade300),
+                        Icon(Icons.people_outline,
+                            size: 56, color: Colors.grey.shade300),
                         const SizedBox(height: 12),
                         const Text('Chưa có khách hàng'),
                         const SizedBox(height: 8),
@@ -128,7 +156,8 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           const Text('Chọn khách hàng',
-                              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w700, fontSize: 15)),
                           const SizedBox(height: 12),
                           TextField(
                             controller: _searchCtrl,
@@ -136,54 +165,55 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                               hintText: 'Tìm tên, SĐT, sản phẩm...',
                               prefixIcon: Icon(Icons.search),
                             ),
-                            onChanged: (v) => setState(() {
+                            onChanged: (v) {
                               _query = v;
-                              _page = 1;
-                            }),
+                              _load();
+                            },
                           ),
                         ],
                       ),
                     ),
                     Expanded(
                       child: ListView(
+                        controller: _scrollCtrl,
                         padding: const EdgeInsets.all(16),
                         children: [
-                          ...pageItems.map((c) {
+                          ..._customers.map((c) {
                             final sel = _selected?.id == c.id;
                             return Card(
                               margin: const EdgeInsets.only(bottom: 8),
                               color: sel
-                                  ? Theme.of(context).colorScheme.primaryContainer.withAlpha(80)
+                                  ? Theme.of(context)
+                                      .colorScheme
+                                      .primaryContainer
+                                      .withAlpha(80)
                                   : null,
                               child: ListTile(
-                                title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                                title: Text(c.name,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600)),
                                 subtitle: Text(
                                   [c.phone, c.product]
-                                      .where((x) => x != null && x!.isNotEmpty)
+                                      .where((x) =>
+                                          x != null && x.isNotEmpty)
                                       .join(' · '),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                trailing: sel ? const Icon(Icons.check_circle, color: Colors.green) : null,
+                                trailing: sel
+                                    ? const Icon(Icons.check_circle,
+                                        color: Colors.green)
+                                    : null,
                                 onTap: () => setState(() => _selected = c),
                               ),
                             );
                           }),
-                          if (totalPages > 1)
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                IconButton(
-                                  onPressed: _page > 1 ? () => setState(() => _page--) : null,
-                                  icon: const Icon(Icons.chevron_left),
-                                ),
-                                Text('$_page / $totalPages'),
-                                IconButton(
-                                  onPressed: _page < totalPages ? () => setState(() => _page++) : null,
-                                  icon: const Icon(Icons.chevron_right),
-                                ),
-                              ],
-                            ),
+                          LoadMoreFooter(
+                            hasMore: _hasMore,
+                            loading: _loadingMore,
+                            visible: _customers.length,
+                            total: _total,
+                          ),
                           const SizedBox(height: 8),
                           FilledButton.icon(
                             onPressed: _openForm,

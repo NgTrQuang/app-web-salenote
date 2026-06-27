@@ -42,13 +42,39 @@ export const SETTING_KEYS = {
   notifLastLoyalty: 'notif_last_loyalty',
   shopName: 'shop_name',
   shopPhone: 'shop_phone',
+  monthlyRevenueGoal: 'monthly_revenue_goal',
 } as const;
 
 export const DEFAULT_NOTIF_HOUR = 9;
 export const DEFAULT_NOTIF_MINUTE = 0;
 
 export const APP_NAME = 'Salenote';
-export const APP_TAGLINE = 'Sổ Sale Cá Nhân';
+export const APP_TAGLINE = 'Trợ lý kinh doanh cá nhân';
+export const NAV_HOME_LABEL = 'Hôm nay';
+
+/** Anchor IDs on Stats page — keep in sync with StatsPage section ids */
+export const STATS_ANCHORS = {
+  revenueBySource: 'revenue-by-source',
+  topProducts: 'top-products',
+  expenses: 'expenses',
+} as const;
+
+export const HOME_ANCHORS = {
+  dailyActions: 'daily-actions',
+} as const;
+
+export const EXPENSE_CATEGORIES = [
+  { key: 'stock', label: 'Nhập hàng' },
+  { key: 'shipping', label: 'Ship / vận chuyển' },
+  { key: 'ads', label: 'Quảng cáo' },
+  { key: 'rent', label: 'Thuê mặt bằng' },
+  { key: 'utilities', label: 'Điện nước' },
+  { key: 'other', label: 'Khác' },
+] as const;
+
+export const EXPENSE_LABELS: Record<string, string> = Object.fromEntries(
+  EXPENSE_CATEGORIES.map((c) => [c.key, c.label]),
+);
 
 /** Nguồn khách — key lưu DB, label hiển thị */
 export const CUSTOMER_SOURCES = [

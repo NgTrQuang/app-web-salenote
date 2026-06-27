@@ -39,6 +39,9 @@ import { BillPreviewDialog } from '@/components/BillPreviewDialog';
 import { buildCustomerIntelligence } from '@/lib/insightsService';
 import { formatAddressOnly, formatShippingInfo } from '@/lib/shippingUtils';
 import { useDataRefresh } from '@/hooks/useDataRefresh';
+import { useClientPagination } from '@/hooks/useClientPagination';
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
+import { Pagination } from '@/components/Pagination';
 
 export function CustomerDetailPage() {
   const { id } = useParams();
@@ -52,6 +55,14 @@ export function CustomerDetailPage() {
   const [showOrderForm, setShowOrderForm] = useState(false);
   const [billOrder, setBillOrder] = useState<Order | null>(null);
   const [toast, setToast] = useState('');
+
+  const ordersPage = useClientPagination(orders);
+  const {
+    slice: interactionSlice,
+    hasMore: hasMoreInteractions,
+    sentinelRef: interactionSentinelRef,
+    total: interactionTotal,
+  } = useInfiniteScroll(interactions);
 
   async function reloadCustomerData() {
     if (!id) return;
@@ -311,7 +322,7 @@ export function CustomerDetailPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {orders.map((o) => (
+                    {ordersPage.slice.map((o) => (
                       <tr key={o.id}>
                         <td className="px-4 py-2 text-slate-500">
                           {new Date(o.created_at).toLocaleDateString('vi-VN')}
@@ -358,6 +369,12 @@ export function CustomerDetailPage() {
                   </tbody>
                 </table>
               </div>
+              <Pagination
+                page={ordersPage.page}
+                pageSize={ordersPage.pageSize}
+                total={ordersPage.total}
+                onPageChange={ordersPage.setPage}
+              />
             </Panel>
           )}
 
@@ -368,7 +385,7 @@ export function CustomerDetailPage() {
               <div className="relative">
                 <div className="absolute bottom-2 left-3 top-2 w-px bg-slate-200 dark:bg-slate-700" />
                 <ul className="space-y-4">
-                  {interactions.map((i) => (
+                  {interactionSlice.map((i) => (
                     <li key={i.id} className="relative pl-10">
                       <span className="absolute left-1.5 top-1.5 h-3 w-3 rounded-full border-2 border-white bg-brand-500 shadow dark:border-slate-900" />
                       <div className="rounded-lg border border-slate-200 bg-slate-50/50 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/30">
@@ -380,6 +397,14 @@ export function CustomerDetailPage() {
                     </li>
                   ))}
                 </ul>
+                {hasMoreInteractions && (
+                  <div
+                    ref={interactionSentinelRef}
+                    className="py-2 text-center text-xs text-slate-400"
+                  >
+                    Đang tải thêm… ({interactionSlice.length}/{interactionTotal})
+                  </div>
+                )}
               </div>
             )}
           </Panel>

@@ -1,11 +1,12 @@
 import Dexie, { type EntityTable } from 'dexie';
-import type { Customer, Interaction, Order, Product, Setting } from '@/types';
+import type { Customer, Expense, Interaction, Order, Product, Setting } from '@/types';
 
 class SalenoteDatabase extends Dexie {
   customers!: EntityTable<Customer, 'id'>;
   interactions!: EntityTable<Interaction, 'id'>;
   products!: EntityTable<Product, 'id'>;
   orders!: EntityTable<Order, 'id'>;
+  expenses!: EntityTable<Expense, 'id'>;
   settings!: EntityTable<Setting, 'key'>;
 
   constructor() {
@@ -57,6 +58,14 @@ class SalenoteDatabase extends Dexie {
         });
       }
     });
+    this.version(6).stores({
+      customers: '++id, name, status, source, product_id, next_action_at, created_at',
+      interactions: '++id, customer_id, created_at',
+      products: '++id, name, active, track_inventory, created_at',
+      orders: '++id, customer_id, product_id, created_at, payment_status',
+      expenses: '++id, category, created_at',
+      settings: 'key',
+    });
   }
 }
 
@@ -72,13 +81,14 @@ export async function setSetting(key: string, value: string): Promise<void> {
 }
 
 export async function exportAll() {
-  const [customers, interactions, products, orders] = await Promise.all([
+  const [customers, interactions, products, orders, expenses] = await Promise.all([
     db.customers.toArray(),
     db.interactions.toArray(),
     db.products.toArray(),
     db.orders.toArray(),
+    db.expenses.toArray(),
   ]);
-  return { customers, interactions, products, orders };
+  return { customers, interactions, products, orders, expenses };
 }
 
 export async function importAll(data: {
@@ -86,17 +96,28 @@ export async function importAll(data: {
   interactions: Interaction[];
   products?: Product[];
   orders?: Order[];
+  expenses?: Expense[];
 }): Promise<void> {
-  await db.transaction('rw', db.customers, db.interactions, db.products, db.orders, async () => {
-    await db.customers.clear();
-    await db.interactions.clear();
-    await db.products.clear();
-    await db.orders.clear();
-    await db.customers.bulkAdd(data.customers);
-    await db.interactions.bulkAdd(data.interactions);
-    if (data.products?.length) await db.products.bulkAdd(data.products);
-    if (data.orders?.length) await db.orders.bulkAdd(data.orders);
-  });
+  await db.transaction(
+    'rw',
+    db.customers,
+    db.interactions,
+    db.products,
+    db.orders,
+    db.expenses,
+    async () => {
+      await db.customers.clear();
+      await db.interactions.clear();
+      await db.products.clear();
+      await db.orders.clear();
+      await db.expenses.clear();
+      await db.customers.bulkAdd(data.customers);
+      await db.interactions.bulkAdd(data.interactions);
+      if (data.products?.length) await db.products.bulkAdd(data.products);
+      if (data.orders?.length) await db.orders.bulkAdd(data.orders);
+      if (data.expenses?.length) await db.expenses.bulkAdd(data.expenses);
+    },
+  );
 }
 
 export function dayRange(date = new Date()): { start: number; end: number } {

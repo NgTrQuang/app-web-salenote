@@ -5,12 +5,28 @@ import '../services/customer_service.dart';
 import '../services/order_service.dart';
 import '../utils/money.dart';
 
-enum ActionType { contactHot, contact, collectDebt, reEngage }
+import '../models/order.dart';
+import '../services/product_service.dart';
+import 'goal_service.dart';
+import 'segment_service.dart';
+
+enum ActionType {
+  contactHot,
+  contact,
+  collectDebt,
+  reEngage,
+  restock,
+  restockUrgent,
+  reEngageProduct,
+}
+
+enum RevenueInsightRoute { stats, debts, customers, homeActions, statsSource }
 
 class DailyAction {
   final String id;
   final ActionType type;
-  final int customerId;
+  final int? customerId;
+  final int? productId;
   final String customerName;
   final String title;
   final String subtitle;
@@ -20,8 +36,9 @@ class DailyAction {
   const DailyAction({
     required this.id,
     required this.type,
-    required this.customerId,
-    required this.customerName,
+    this.customerId,
+    this.productId,
+    this.customerName = '',
     required this.title,
     required this.subtitle,
     required this.priority,
@@ -55,7 +72,16 @@ class AtRiskSummary {
 
 class RevenueInsight {
   final String text;
-  const RevenueInsight(this.text);
+  final String? highlight;
+  final String? actionText;
+  final RevenueInsightRoute? actionRoute;
+
+  const RevenueInsight(
+    this.text, {
+    this.highlight,
+    this.actionText,
+    this.actionRoute,
+  });
 }
 
 class AchievementStats {
@@ -112,6 +138,9 @@ class InsightsService {
   final DatabaseHelper _db = DatabaseHelper();
   final CustomerService _customers = CustomerService();
   final OrderService _orders = OrderService();
+  final ProductService _products = ProductService();
+  final SegmentService _segments = SegmentService();
+  final GoalService _goals = GoalService();
 
   int _daysSince(int ms, [int? now]) {
     final n = now ?? DateTime.now().millisecondsSinceEpoch;
@@ -250,6 +279,33 @@ class InsightsService {
       ));
     }
 
+    final lowStock = await _products.getLowStockProducts();
+    for (final p in lowStock) {
+      if (p.id == null) continue;
+      final urgent = p.stockStatus == 'out';
+      actions.add(DailyAction(
+        id: 'stock-${p.id}',
+        type: urgent ? ActionType.restockUrgent : ActionType.restock,
+        productId: p.id,
+        title: urgent ? 'Hết hàng: ${p.name}' : 'Sắp hết: ${p.name}',
+        subtitle: 'Còn ${p.stockQuantity} — cân nhắc nhập thêm',
+        priority: urgent ? 7 : 8,
+      ));
+    }
+
+    final segments = await _segments.getProductReengageSegments(now);
+    for (final seg in segments.take(2)) {
+      actions.add(DailyAction(
+        id: 'segment-${seg.productId}',
+        type: ActionType.reEngageProduct,
+        productId: seg.productId,
+        title: 'Nhắn ${seg.customers.length} khách mua ${seg.productName}',
+        subtitle:
+            'Mua cách đây ${SegmentService.segmentMinDays}+ ngày · chưa liên hệ gần đây',
+        priority: 65,
+      ));
+    }
+
     actions.sort((a, b) {
       final p = a.priority.compareTo(b.priority);
       if (p != 0) return p;
@@ -267,10 +323,34 @@ class InsightsService {
     final summary = await _orders.getSalesSummaryForMonth(d);
     final bySource = await _orders.getRevenueBySource(start, end);
     final topProducts = await _orders.getTopSalesProductsByRevenue(start, end);
+    final goalProgress = await _goals.getGoalProgress(d);
+
+    if (goalProgress != null) {
+      if (goalProgress.remaining <= 0) {
+        insights.add(RevenueInsight(
+          'Đã đạt mục tiêu tháng ${formatMoney(goalProgress.goal)} — tiếp tục duy trì đà!',
+          highlight: formatMoney(goalProgress.goal),
+        ));
+      } else {
+        final ordersHint = goalProgress.ordersNeeded != null &&
+                goalProgress.ordersNeeded! > 0
+            ? ' — cần thêm khoảng ${goalProgress.ordersNeeded} đơn'
+            : '';
+        insights.add(RevenueInsight(
+          'Mục tiêu tháng còn ${formatMoney(goalProgress.remaining)}$ordersHint',
+          highlight: formatMoney(goalProgress.remaining),
+          actionText: '→ Xem tiền của tôi',
+          actionRoute: RevenueInsightRoute.stats,
+        ));
+      }
+    }
 
     if (summary.debt > 0) {
       insights.add(RevenueInsight(
-        'Còn ${formatMoney(summary.debt)} công nợ tháng này — ưu tiên thu trước khi chốt đơn mới',
+        'Còn ${formatMoney(summary.debt)} chưa thu tháng này — ưu tiên thu trước khi chốt đơn mới',
+        highlight: formatMoney(summary.debt),
+        actionText: '→ Xem ai nợ tôi',
+        actionRoute: RevenueInsightRoute.debts,
       ));
     }
 
@@ -279,7 +359,10 @@ class InsightsService {
       final pct = ((top['revenue'] as num) / summary.revenue * 100).round();
       if (pct >= 20) {
         insights.add(RevenueInsight(
-          '${top['label']} tạo $pct% doanh thu tháng này',
+          '${top['label']} tạo $pct% doanh thu tháng này — tập trung thêm kênh này',
+          highlight: top['label'] as String?,
+          actionText: '→ Xem chi tiết nguồn',
+          actionRoute: RevenueInsightRoute.statsSource,
         ));
       }
       if (bySource.length >= 2) {
@@ -298,13 +381,18 @@ class InsightsService {
       final pct =
           ((top['revenue'] as num) / summary.revenue * 100).round();
       insights.add(RevenueInsight(
-        '"${top['product']}" đang bán chạy nhất ($pct% doanh thu tháng)',
+        '"${top['product']}" đang bán chạy nhất ($pct% doanh thu tháng) — ưu tiên nhắn khách cũ mua SP này',
+        highlight: top['product'] as String?,
+        actionText: '→ Xem việc hôm nay',
+        actionRoute: RevenueInsightRoute.homeActions,
       ));
     }
 
     if (insights.isEmpty && summary.revenue == 0) {
       insights.add(const RevenueInsight(
         'Chưa có doanh thu tháng này — tập trung chăm khách Nóng và Tiềm năng trước',
+        actionText: '→ Mở Sổ khách',
+        actionRoute: RevenueInsightRoute.customers,
       ));
     }
 

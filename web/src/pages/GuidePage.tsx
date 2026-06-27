@@ -3,13 +3,13 @@ import { ChevronDown } from 'lucide-react';
 import { Breadcrumbs } from '@/components/CustomerTable';
 import { PageHeader, Panel } from '@/components/ui';
 import { GUIDE_SECTIONS, GUIDE_VERSION } from '@/lib/guideContent';
-import { APP_NAME, APP_TAGLINE } from '@/lib/constants';
+import { APP_NAME, APP_TAGLINE, NAV_HOME_LABEL } from '@/lib/constants';
 
 export function GuidePage() {
   return (
     <div>
       <Breadcrumbs
-        items={[{ label: 'Bảng điều khiển', to: '/' }, { label: 'Hướng dẫn sử dụng' }]}
+        items={[{ label: NAV_HOME_LABEL, to: '/' }, { label: 'Hướng dẫn sử dụng' }]}
       />
 
       <PageHeader
@@ -26,8 +26,8 @@ export function GuidePage() {
             <h2 className="text-xl font-bold">{APP_NAME}</h2>
             <p className="mt-1 text-sm text-brand-100">{APP_TAGLINE}</p>
             <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/90">
-              Sổ sale cá nhân v{GUIDE_VERSION} — chăm khách, ghi đơn có tiền, snapshot giao hàng, bill PDF,
-              Trợ lý Sale gợi ý việc làm. Dữ liệu khách ↔ sản phẩm ↔ đơn hàng trên máy bạn.
+              Trợ lý kinh doanh cá nhân v{GUIDE_VERSION} — không quên khách, không quên tiền,
+              biết việc hôm nay. Ghi đơn, snapshot giao hàng, bill PDF. Dữ liệu trên máy bạn.
             </p>
           </div>
         </div>
@@ -45,7 +45,7 @@ export function GuidePage() {
             Tạo <strong>Sản phẩm</strong> trước, thêm khách kèm <strong>nguồn</strong> và <strong>địa chỉ mặc định</strong>.
           </li>
           <li>
-            Mở <strong>Bảng điều khiển</strong> sáng — xem <strong>Trợ lý Sale</strong> (việc nên làm, cảnh báo) trước khi nhắn khách.
+            Mở <strong>Hôm nay</strong> sáng — xem việc cần làm và gợi ý trước khi nhắn khách.
           </li>
           <li>
             <strong>Ghi đơn</strong> kèm giao hàng — địa chỉ snapshot trên đơn; dùng <strong>Copy ship</strong> / <strong>Bill PDF</strong> khi giao hàng.

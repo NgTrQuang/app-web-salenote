@@ -12,8 +12,14 @@ import '../utils/constants.dart';
 import '../utils/money.dart';
 import '../widgets/customer_card.dart';
 import '../services/insights_service.dart';
+import '../services/goal_service.dart';
+import '../services/segment_service.dart';
 import '../widgets/insights_panels.dart';
 import '../widgets/sales_dashboard.dart';
+import '../widgets/today_summary_bar.dart';
+import '../widgets/goal_progress_card.dart';
+import '../widgets/segment_action_sheet.dart';
+import '../widgets/infinite_scroll.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_logo.dart';
 import 'add_customer_screen.dart';
@@ -23,6 +29,7 @@ import 'customer_detail_screen.dart';
 import 'products_screen.dart';
 import 'settings_screen.dart';
 import 'stats_screen.dart';
+import 'debts_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -48,7 +55,11 @@ class _HomeScreenState extends State<HomeScreen> {
   AtRiskSummary _atRisk = const AtRiskSummary();
   AchievementStats _achievements = const AchievementStats();
   List<RevenueInsight> _revenueInsights = [];
+  GoalProgress? _goalProgress;
   bool _showSalesDetail = false;
+  bool _showCustomers = false;
+  final _needsVisible = ClientVisibleList();
+  final _upcomingVisible = ClientVisibleList();
   final _insights = InsightsService();
   int _navIndex = 0;
   bool _showSwipeHint = false;
@@ -68,11 +79,30 @@ class _HomeScreenState extends State<HomeScreen> {
     if (shouldExtend != _fabExtended) {
       setState(() => _fabExtended = shouldExtend);
     }
+    if (!_scrollCtrl.hasClients) return;
+    if (!scrollNearBottom(_scrollCtrl.position)) return;
+    var changed = false;
+    if (_needsVisible.hasMore(_filteredAttention)) {
+      _needsVisible.loadMore(_filteredAttention);
+      changed = true;
+    } else if (_upcomingVisible.hasMore(_filteredUpcoming)) {
+      _upcomingVisible.loadMore(_filteredUpcoming);
+      changed = true;
+    }
+    if (changed) setState(() {});
+  }
+
+  void _resetListVisible() {
+    _needsVisible.reset();
+    _upcomingVisible.reset();
   }
 
   void _clearSearch() {
     _searchCtrl.clear();
-    setState(() => _searchQuery = '');
+    setState(() {
+      _searchQuery = '';
+    });
+    _resetListVisible();
   }
 
   @override
@@ -102,6 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _insights.getAtRiskSummary(),
       _insights.getAchievementStats(),
       _insights.getRevenueInsights(),
+      GoalService().getGoalProgress(),
     ]);
     if (mounted) {
       _needsAttention = results[0] as List<Customer>;
@@ -117,9 +148,12 @@ class _HomeScreenState extends State<HomeScreen> {
       _atRisk = results[10] as AtRiskSummary;
       _achievements = results[11] as AchievementStats;
       _revenueInsights = results[12] as List<RevenueInsight>;
+      _goalProgress = results[13] as GoalProgress?;
       final today = DateTime.now();
       final todayStr = '${today.year}-${today.month}-${today.day}';
       final tip = tipDate != todayStr ? _pickTip(todayStr) : null;
+      _needsVisible.reset();
+      _upcomingVisible.reset();
       setState(() {
         _loading = false;
         _showSwipeHint = !hintShown &&
@@ -215,6 +249,41 @@ class _HomeScreenState extends State<HomeScreen> {
         ));
     }
     _load();
+  }
+
+  Future<void> _openSegment(int productId) async {
+    final seg = await SegmentService().getProductSegment(productId);
+    if (seg != null && mounted) {
+      await SegmentActionSheet.show(context, seg);
+    }
+  }
+
+  void _handleInsightAction(RevenueInsightRoute route) {
+    switch (route) {
+      case RevenueInsightRoute.stats:
+      case RevenueInsightRoute.statsSource:
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const StatsScreen()),
+        );
+        break;
+      case RevenueInsightRoute.debts:
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const DebtsScreen()),
+        );
+        break;
+      case RevenueInsightRoute.customers:
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const AllCustomersScreen()),
+        );
+        break;
+      case RevenueInsightRoute.homeActions:
+        _scrollCtrl.animateTo(
+          280,
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOut,
+        );
+        break;
+    }
   }
 
   Future<void> _addCustomer() async {
@@ -343,8 +412,10 @@ class _HomeScreenState extends State<HomeScreen> {
     final theme = Theme.of(context);
     final total = _needsAttention.length + _upcoming.length;
     final urgentCount = _needsAttention.length;
-    final fa = _filteredAttention;
-    final fu = _filteredUpcoming;
+    final fa = _needsVisible.slice(_filteredAttention);
+    final fu = _upcomingVisible.slice(_filteredUpcoming);
+    final faTotal = _filteredAttention.length;
+    final fuTotal = _filteredUpcoming.length;
     final filteredTotal = fa.length + fu.length;
     final l = AppLocalizations.of(context);
     final bg = theme.scaffoldBackgroundColor;
@@ -395,17 +466,17 @@ class _HomeScreenState extends State<HomeScreen> {
                 label: Text('$urgentCount'),
                 child: const Icon(Icons.home_rounded),
               ),
-              label: 'Trang chủ',
+              label: 'Hôm nay',
             ),
             const NavigationDestination(
               icon: Icon(Icons.people_outline_rounded),
               selectedIcon: Icon(Icons.people_rounded),
-              label: 'Tất cả',
+              label: 'Sổ khách',
             ),
             const NavigationDestination(
               icon: Icon(Icons.bar_chart_outlined),
               selectedIcon: Icon(Icons.bar_chart_rounded),
-              label: 'Thống kê',
+              label: 'Tiền',
             ),
             const NavigationDestination(
               icon: Icon(Icons.settings_outlined),
@@ -517,7 +588,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         child: _HomeSearchBar(
                           controller: _searchCtrl,
                           hint: l.searchHint,
-                          onChanged: (v) => setState(() => _searchQuery = v),
+                          onChanged: (v) => setState(() {
+                            _searchQuery = v;
+                            _resetListVisible();
+                          }),
                           onClear: _clearSearch,
                           bg: bg,
                         ),
@@ -557,7 +631,28 @@ class _HomeScreenState extends State<HomeScreen> {
                         SliverToBoxAdapter(
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                            child: DailyActionCenter(actions: _dailyActions),
+                            child: TodaySummaryBar(
+                              today: _todaySales,
+                              month: _monthSales,
+                              actionCount: _dailyActions.length,
+                              totalDebt: _atRisk.totalDebt,
+                            ),
+                          ),
+                        ),
+                        if (_goalProgress != null)
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                              child: GoalProgressCard(progress: _goalProgress!),
+                            ),
+                          ),
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                            child: DailyActionCenter(
+                              actions: _dailyActions,
+                              onSegmentAction: _openSegment,
+                            ),
                           ),
                         ),
                         SliverToBoxAdapter(
@@ -575,7 +670,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         SliverToBoxAdapter(
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                            child: RevenueInsightPanel(insights: _revenueInsights),
+                            child: RevenueInsightPanel(
+                              insights: _revenueInsights,
+                              onAction: _handleInsightAction,
+                            ),
                           ),
                         ),
                         SliverToBoxAdapter(
@@ -691,11 +789,37 @@ class _HomeScreenState extends State<HomeScreen> {
                           overdueCount: _overdueCount,
                           onTap: () => _onNavTap(1),
                         ),
-                      if (fa.isNotEmpty) ...[
+                      if (_searchQuery.isEmpty)
+                        SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                            child: Card(
+                              child: ListTile(
+                                title: Text(
+                                  'Sổ khách hôm nay ($total)',
+                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                subtitle: Text(
+                                  'Cần liên hệ $urgentCount · Sắp tới ${_upcoming.length}',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                                trailing: Icon(
+                                  _showCustomers
+                                      ? Icons.expand_less
+                                      : Icons.expand_more,
+                                ),
+                                onTap: () =>
+                                    setState(() => _showCustomers = !_showCustomers),
+                              ),
+                            ),
+                          ),
+                        ),
+                      if (_showCustomers || _searchQuery.isNotEmpty) ...[
+                      if (faTotal > 0) ...[
                         _SectionHeader(
                           icon: Icons.local_fire_department_rounded,
                           title: l.needsAttention,
-                          count: fa.length,
+                          count: faTotal,
                           color: Colors.red.shade600,
                           bgColor: Colors.red.shade50,
                         ),
@@ -710,12 +834,21 @@ class _HomeScreenState extends State<HomeScreen> {
                             childCount: fa.length,
                           ),
                         ),
+                        if (faTotal > kDefaultPageSize)
+                          SliverToBoxAdapter(
+                            child: LoadMoreFooter(
+                              hasMore: _needsVisible.hasMore(_filteredAttention),
+                              loading: false,
+                              visible: fa.length,
+                              total: faTotal,
+                            ),
+                          ),
                       ],
-                      if (fu.isNotEmpty) ...[
+                      if (fuTotal > 0) ...[
                         _SectionHeader(
                           icon: Icons.schedule_rounded,
                           title: l.upcoming,
-                          count: fu.length,
+                          count: fuTotal,
                           color: Colors.blue.shade700,
                           bgColor: Colors.blue.shade50,
                         ),
@@ -730,6 +863,17 @@ class _HomeScreenState extends State<HomeScreen> {
                             childCount: fu.length,
                           ),
                         ),
+                        if (fuTotal > kDefaultPageSize)
+                          SliverToBoxAdapter(
+                            child: LoadMoreFooter(
+                              hasMore:
+                                  _upcomingVisible.hasMore(_filteredUpcoming),
+                              loading: false,
+                              visible: fu.length,
+                              total: fuTotal,
+                            ),
+                          ),
+                      ],
                       ],
                       SliverToBoxAdapter(
                         child: SizedBox(

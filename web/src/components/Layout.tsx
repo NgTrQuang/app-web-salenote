@@ -1,9 +1,10 @@
 import { NavLink, Outlet, Link, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard,
+  CalendarDays,
   Users,
   Package,
   Receipt,
+  Wallet,
   BarChart3,
   Settings,
   Plus,
@@ -12,16 +13,17 @@ import {
   Database,
   BookOpen,
 } from 'lucide-react';
-import { APP_NAME, APP_TAGLINE } from '@/lib/constants';
+import { APP_NAME, APP_TAGLINE, NAV_HOME_LABEL } from '@/lib/constants';
 import { useShell } from '@/contexts/ShellContext';
 import { useNotificationScheduler } from '@/hooks/useNotificationScheduler';
 
 const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Bảng điều khiển', end: true },
-  { to: '/customers', icon: Users, label: 'Khách hàng' },
+  { to: '/', icon: CalendarDays, label: NAV_HOME_LABEL, end: true },
+  { to: '/customers', icon: Users, label: 'Sổ khách' },
   { to: '/products', icon: Package, label: 'Sản phẩm' },
   { to: '/orders', icon: Receipt, label: 'Đơn hàng' },
-  { to: '/stats', icon: BarChart3, label: 'Thống kê' },
+  { to: '/debts', icon: Wallet, label: 'Ai nợ tôi' },
+  { to: '/stats', icon: BarChart3, label: 'Tiền của tôi' },
   { to: '/guide', icon: BookOpen, label: 'Hướng dẫn' },
   { to: '/settings', icon: Settings, label: 'Cài đặt' },
 ];
@@ -166,7 +168,7 @@ function SidebarLink({
   onNavigate,
 }: {
   to: string;
-  icon: typeof LayoutDashboard;
+  icon: typeof CalendarDays;
   label: string;
   end?: boolean;
   onNavigate: () => void;

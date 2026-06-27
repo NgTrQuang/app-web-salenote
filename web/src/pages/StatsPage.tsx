@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Breadcrumbs } from '@/components/CustomerTable';
+import { NAV_HOME_LABEL, STATS_ANCHORS } from '@/lib/constants';
 import { SalesDashboard } from '@/components/SalesDashboard';
 import { PageHeader, Panel, StatCard, LoadingSpinner } from '@/components/ui';
 import { getCurrentStreak, getMonthlyStats } from '@/lib/customerService';
@@ -9,10 +10,19 @@ import { monthRangeFromDate } from '@/lib/db';
 import type { MonthlyStats, Order } from '@/types';
 import { orderRevenue, summarizeOrders } from '@/types';
 import { formatMoney } from '@/lib/money';
-import { getRevenueInsights, getAchievementStats, type RevenueInsight } from '@/lib/insightsService';
+import { ExpensePanel } from '@/components/ExpensePanel';
+import { GoalProgressCard } from '@/components/GoalProgressCard';
 import { RevenueInsightCard } from '@/components/RevenueInsightCard';
 import { AchievementBanner } from '@/components/AchievementBanner';
+import { getGoalProgress, type GoalProgress } from '@/lib/goalService';
+import { getTrueProfit } from '@/lib/expenseService';
+import {
+  getRevenueInsights,
+  getAchievementStats,
+  type RevenueInsight,
+} from '@/lib/insightsService';
 import { useDataRefresh } from '@/hooks/useDataRefresh';
+import { useScrollToHash } from '@/hooks/useScrollToHash';
 
 export function StatsPage() {
   const refresh = useDataRefresh();
@@ -29,7 +39,11 @@ export function StatsPage() {
   const [achievements, setAchievements] = useState<Awaited<
     ReturnType<typeof getAchievementStats>
   > | null>(null);
+  const [goalProgress, setGoalProgress] = useState<GoalProgress | null>(null);
+  const [trueProfit, setTrueProfit] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useScrollToHash(!loading);
 
   const isCurrentMonth =
     year === now.getFullYear() && month === now.getMonth() + 1;
@@ -45,13 +59,17 @@ export function StatsPage() {
       getRevenueBySource(start, end),
       getRevenueInsights(date),
       getAchievementStats(),
-    ]).then(([s, str, orders, bySource, ins, achieve]) => {
+      getGoalProgress(date),
+    ]).then(async ([s, str, orders, bySource, ins, achieve, goal]) => {
       setStats(s);
       setStreak(str);
       setMonthOrders(orders);
       setRevenueBySource(bySource);
       setInsights(ins);
       setAchievements(achieve);
+      setGoalProgress(goal);
+      const summary = summarizeOrders(orders);
+      setTrueProfit(await getTrueProfit(summary.profit, date));
       setLoading(false);
     });
   }, [year, month, refresh]);
@@ -86,14 +104,22 @@ export function StatsPage() {
       : 0;
 
   const salesSummary = summarizeOrders(monthOrders);
+  const monthDate = new Date(year, month - 1);
+
+  const monthSummaryText =
+    trueProfit != null
+      ? `Tháng này lời gộp ${formatMoney(salesSummary.profit)} · Lãi thật ${formatMoney(trueProfit)}`
+      : salesSummary.profit > 0
+        ? `Tháng này lời ${formatMoney(salesSummary.profit)}`
+        : 'Chưa có lợi nhuận tháng này';
 
   return (
     <div className="space-y-8">
-      <Breadcrumbs items={[{ label: 'Bảng điều khiển', to: '/' }, { label: 'Thống kê' }]} />
+      <Breadcrumbs items={[{ label: NAV_HOME_LABEL, to: '/' }, { label: 'Tiền của tôi' }]} />
 
       <PageHeader
-        title="Thống kê"
-        subtitle="Quyết định bán hàng từ dữ liệu thực — doanh thu, nguồn khách, hiệu quả chăm sóc"
+        title="Tiền của tôi"
+        subtitle={monthSummaryText}
       />
 
       <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -126,11 +152,21 @@ export function StatsPage() {
         <LoadingSpinner />
       ) : (
         <>
+          {goalProgress && isCurrentMonth && <GoalProgressCard progress={goalProgress} />}
+
           {achievements && <AchievementBanner stats={achievements} />}
 
           <RevenueInsightCard insights={insights} />
 
-          <SalesDashboard title={`Doanh số — ${monthLabel}`} summary={salesSummary} />
+          <SalesDashboard
+            title={`Doanh số — ${monthLabel}`}
+            summary={salesSummary}
+            trueProfit={trueProfit}
+          />
+
+          <div id={STATS_ANCHORS.expenses} className="scroll-mt-20">
+            <ExpensePanel date={monthDate} grossProfit={salesSummary.profit} />
+          </div>
 
           <div>
             <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-500">
@@ -202,25 +238,29 @@ export function StatsPage() {
             </Panel>
           </div>
 
-          <Panel title="Top doanh thu theo sản phẩm (đơn thực)">
-            {monthOrders.length > 0 ? (
-              <TopSalesProducts orders={monthOrders} />
-            ) : (
-              <p className="text-sm text-slate-500">
-                Chưa có đơn tháng này — ghi đơn từ trang khách hoặc Đơn hàng.
-              </p>
-            )}
-          </Panel>
+          <div id={STATS_ANCHORS.topProducts} className="scroll-mt-20">
+            <Panel title="Top doanh thu theo sản phẩm (đơn thực)">
+              {monthOrders.length > 0 ? (
+                <TopSalesProducts orders={monthOrders} />
+              ) : (
+                <p className="text-sm text-slate-500">
+                  Chưa có đơn tháng này — ghi đơn từ trang khách hoặc Đơn hàng.
+                </p>
+              )}
+            </Panel>
+          </div>
 
-          <Panel title="Doanh thu theo nguồn khách">
-            {revenueBySource.length > 0 ? (
-              <RevenueBySourceList rows={revenueBySource} />
-            ) : (
-              <p className="text-sm text-slate-500">
-                Chưa có doanh thu theo nguồn — ghi nguồn khách khi thêm khách và ghi đơn.
-              </p>
-            )}
-          </Panel>
+          <div id={STATS_ANCHORS.revenueBySource} className="scroll-mt-20">
+            <Panel title="Doanh thu theo nguồn khách">
+              {revenueBySource.length > 0 ? (
+                <RevenueBySourceList rows={revenueBySource} />
+              ) : (
+                <p className="text-sm text-slate-500">
+                  Chưa có doanh thu theo nguồn — ghi nguồn khách khi thêm khách và ghi đơn.
+                </p>
+              )}
+            </Panel>
+          </div>
         </>
       )}
     </div>

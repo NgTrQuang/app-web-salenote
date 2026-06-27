@@ -24,7 +24,10 @@ import {
   stockStatusLabel,
 } from '@/lib/productService';
 import { formatMoney, formatMoneyInput, parseMoneyInput } from '@/lib/money';
+import { NAV_HOME_LABEL } from '@/lib/constants';
 import { useDataRefresh } from '@/hooks/useDataRefresh';
+import { useClientPagination } from '@/hooks/useClientPagination';
+import { Pagination } from '@/components/Pagination';
 
 export function ProductsPage() {
   const refresh = useDataRefresh();
@@ -81,9 +84,11 @@ export function ProductsPage() {
     return s === 'low' || s === 'out';
   }).length;
 
+  const { page, setPage, slice, total, pageSize } = useClientPagination(products);
+
   return (
     <div>
-      <Breadcrumbs items={[{ label: 'Bảng điều khiển', to: '/' }, { label: 'Sản phẩm' }]} />
+      <Breadcrumbs items={[{ label: NAV_HOME_LABEL, to: '/' }, { label: 'Sản phẩm' }]} />
 
       <PageHeader
         title="Sản phẩm & dịch vụ"
@@ -131,12 +136,13 @@ export function ProductsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {products.map((p) => (
+                {slice.map((p) => (
                   <StockRow key={p.id} product={p} onEdit={openEdit} onDelete={handleDelete} onToggle={handleToggle} />
                 ))}
               </tbody>
             </table>
           </div>
+          <Pagination page={page} pageSize={pageSize} total={total} onPageChange={setPage} />
         </Panel>
       )}
 

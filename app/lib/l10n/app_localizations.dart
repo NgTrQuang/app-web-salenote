@@ -18,8 +18,8 @@ class AppLocalizations {
   String get appNameFull =>
       isVi ? 'Sổ Sale Cá Nhân - Salenote' : 'Personal Sales Ledger - Salenote';
   String get appTagline => isVi
-      ? 'Sổ Sale Cá Nhân · Chăm khách, ghi đơn, biết tiền'
-      : 'Personal sales ledger · CRM, orders & money';
+      ? 'Trợ lý kinh doanh cá nhân'
+      : 'Personal business assistant';
   String get version => isVi ? 'Phiên bản' : 'Version';
 
   // ── Home ───────────────────────────────────────────────────
@@ -32,8 +32,8 @@ class AppLocalizations {
   String get addCustomer => isVi ? 'Thêm khách' : 'Add customer';
   String get searchHint => isVi ? 'Tìm tên, SĐT, sản phẩm...' : 'Search name, phone, product...';
   String get noSearchResults => isVi ? 'Không tìm thấy khách nào' : 'No customers found';
-  String get stats => isVi ? 'Thống kê' : 'Statistics';
-  String get allCustomers => isVi ? 'Tất cả khách' : 'All Customers';
+  String get allCustomers => isVi ? 'Sổ khách' : 'Customers';
+  String get stats => isVi ? 'Tiền của tôi' : 'My money';
   String get settings => isVi ? 'Cài đặt' : 'Settings';
   String get messageSentConfirm =>
       isVi ? 'Đã nhắn tin cho {name} ✓' : 'Messaged {name} ✓';
@@ -223,8 +223,8 @@ class AppLocalizations {
   // ── Guide ──────────────────────────────────────────────────
   String get guideTitle => isVi ? 'Hướng dẫn sử dụng' : 'User Guide';
   String get guideIntro => isVi
-      ? 'Sổ sale cá nhân — chăm khách, ghi đơn có tiền, biết doanh thu theo sản phẩm và nguồn. Dữ liệu khách ↔ sản phẩm ↔ đơn hàng liên kết trên máy bạn.'
-      : 'Personal sales ledger — CRM, orders with revenue, and source analytics. Customer ↔ product ↔ order data stays on your device.';
+      ? 'Salenote v2 — sổ sale cá nhân: chăm khách, ghi đơn có tiền, snapshot giao hàng, bill PDF, Trợ lý Sale. Dữ liệu trên máy bạn, backup JSON dùng chung web ↔ app.'
+      : 'Salenote v2 — personal sales CRM: orders, shipping snapshots, PDF bills, Sales Assistant. Data stays on device; JSON backup syncs web ↔ app.';
   String get guide1Title => isVi ? 'Thêm khách hàng' : 'Add a Customer';
   String get guide1Body => isVi
       ? 'Nhấn nút "Thêm khách" ở góc dưới màn hình chính. Điền tên (bắt buộc), SĐT, sản phẩm và ghi chú tuỳ ý.\n\nQuan trọng: Chọn đúng trạng thái ngay khi thêm khách để app tính lịch nhắc chính xác. Mặc định là "Mới".'

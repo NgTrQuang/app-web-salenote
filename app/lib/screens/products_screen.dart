@@ -4,6 +4,7 @@ import '../services/product_service.dart';
 import '../utils/constants.dart';
 import '../utils/money.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/infinite_scroll.dart';
 
 class ProductsScreen extends StatefulWidget {
   const ProductsScreen({super.key});
@@ -16,20 +17,73 @@ class _ProductsScreenState extends State<ProductsScreen> {
   final _service = ProductService();
   List<Product> _products = [];
   bool _loading = true;
+  bool _loadingMore = false;
+  int _page = 1;
+  int _total = 0;
+  final _scrollCtrl = ScrollController();
+  final _loadGate = LoadMoreGate();
+
+  bool get _hasMore => _products.length < _total;
 
   @override
   void initState() {
     super.initState();
+    bindScrollLoadMore(
+      _scrollCtrl,
+      hasMore: () => _hasMore && !_loading && !_loadingMore,
+      onLoadMore: _loadMore,
+      gate: _loadGate,
+    );
     _load();
   }
 
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
+  }
+
   Future<void> _load() async {
+    _page = 1;
     setState(() => _loading = true);
-    final list = await _service.getAllProducts();
-    if (mounted) setState(() {
+    final list = await _service.getProductsPaged(
+      page: _page,
+      pageSize: kDefaultPageSize,
+    );
+    final total = await _service.countProducts();
+    if (!mounted) return;
+    setState(() {
       _products = list;
+      _total = total;
       _loading = false;
     });
+    ensureScrollFill(
+      controller: _scrollCtrl,
+      hasMore: _hasMore,
+      onLoadMore: _loadMore,
+    );
+  }
+
+  Future<void> _loadMore() async {
+    if (!_hasMore || _loading || _loadingMore) return;
+    setState(() => _loadingMore = true);
+    final nextPage = _page + 1;
+    final list = await _service.getProductsPaged(
+      page: nextPage,
+      pageSize: kDefaultPageSize,
+    );
+    if (!mounted) return;
+    setState(() {
+      _page = nextPage;
+      final existing = _products.map((p) => p.id).toSet();
+      _products.addAll(list.where((p) => !existing.contains(p.id)));
+      _loadingMore = false;
+    });
+    ensureScrollFill(
+      controller: _scrollCtrl,
+      hasMore: _hasMore,
+      onLoadMore: _loadMore,
+    );
   }
 
   Future<void> _openForm([Product? product]) async {
@@ -86,59 +140,91 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     ],
                   ),
                 )
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: ListView.separated(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 88),
-                    itemCount: _products.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 8),
-                    itemBuilder: (ctx, i) {
-                      final p = _products[i];
-                      return Card(
-                        child: ListTile(
-                          title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                          subtitle: Text(
-                            'Bán ${formatMoney(p.defaultSellPrice)} · Lời ${formatMoney(p.defaultSellPrice - p.costPrice)}'
-                            '${p.trackInventory ? '\nKho: ${p.stockQuantity} (${AppConstants.stockStatusLabel(p.stockStatus)})' : ''}',
-                          ),
-                          trailing: PopupMenuButton(
-                            itemBuilder: (_) => [
-                              const PopupMenuItem(value: 'edit', child: Text('Sửa')),
-                              PopupMenuItem(
-                                value: 'toggle',
-                                child: Text(p.active ? 'Ẩn' : 'Kích hoạt'),
+              : Column(
+                  children: [
+                    Expanded(
+                      child: RefreshIndicator(
+                        onRefresh: _load,
+                        child: ListView.separated(
+                          controller: _scrollCtrl,
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          itemCount: _products.length + 1,
+                          separatorBuilder: (_, i) =>
+                              i < _products.length - 1
+                                  ? const SizedBox(height: 8)
+                                  : const SizedBox.shrink(),
+                          itemBuilder: (ctx, i) {
+                            if (i >= _products.length) {
+                              return LoadMoreFooter(
+                                hasMore: _hasMore,
+                                loading: _loadingMore,
+                                visible: _products.length,
+                                total: _total,
+                              );
+                            }
+                            final p = _products[i];
+                            return Card(
+                              child: ListTile(
+                                title: Text(p.name,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600)),
+                                subtitle: Text(
+                                  'Bán ${formatMoney(p.defaultSellPrice)} · Lời ${formatMoney(p.defaultSellPrice - p.costPrice)}'
+                                  '${p.trackInventory ? '\nKho: ${p.stockQuantity} (${AppConstants.stockStatusLabel(p.stockStatus)})' : ''}',
+                                ),
+                                trailing: PopupMenuButton(
+                                  itemBuilder: (_) => [
+                                    const PopupMenuItem(
+                                        value: 'edit', child: Text('Sửa')),
+                                    PopupMenuItem(
+                                      value: 'toggle',
+                                      child: Text(p.active ? 'Ẩn' : 'Kích hoạt'),
+                                    ),
+                                    const PopupMenuItem(
+                                        value: 'delete',
+                                        child: Text('Xoá',
+                                            style:
+                                                TextStyle(color: Colors.red))),
+                                  ],
+                                  onSelected: (v) async {
+                                    if (v == 'edit') _openForm(p);
+                                    if (v == 'toggle') {
+                                      await _service.toggleActive(p);
+                                      _load();
+                                    }
+                                    if (v == 'delete' && p.id != null) {
+                                      final ok = await showDialog<bool>(
+                                        context: context,
+                                        builder: (c) => AlertDialog(
+                                          title: const Text('Xoá sản phẩm?'),
+                                          content: Text('Xoá "${p.name}"?'),
+                                          actions: [
+                                            TextButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(c, false),
+                                                child: const Text('Huỷ')),
+                                            FilledButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(c, true),
+                                                child: const Text('Xoá')),
+                                          ],
+                                        ),
+                                      );
+                                      if (ok == true) {
+                                        await _service.deleteProduct(p.id!);
+                                        _load();
+                                      }
+                                    }
+                                  },
+                                ),
                               ),
-                              const PopupMenuItem(value: 'delete', child: Text('Xoá', style: TextStyle(color: Colors.red))),
-                            ],
-                            onSelected: (v) async {
-                              if (v == 'edit') _openForm(p);
-                              if (v == 'toggle') {
-                                await _service.toggleActive(p);
-                                _load();
-                              }
-                              if (v == 'delete' && p.id != null) {
-                                final ok = await showDialog<bool>(
-                                  context: context,
-                                  builder: (c) => AlertDialog(
-                                    title: const Text('Xoá sản phẩm?'),
-                                    content: Text('Xoá "${p.name}"?'),
-                                    actions: [
-                                      TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Huỷ')),
-                                      FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Xoá')),
-                                    ],
-                                  ),
-                                );
-                                if (ok == true) {
-                                  await _service.deleteProduct(p.id!);
-                                  _load();
-                                }
-                              }
-                            },
-                          ),
+                            );
+                          },
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    ),
+                    const SizedBox(height: 88),
+                  ],
                 ),
     );
   }

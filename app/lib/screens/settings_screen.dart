@@ -7,6 +7,8 @@ import '../services/customer_service.dart';
 import '../services/notification_service.dart';
 import '../services/pin_service.dart';
 import '../services/shop_settings_service.dart';
+import '../services/goal_service.dart';
+import '../utils/money.dart';
 import '../utils/constants.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/app_logo.dart';
@@ -36,6 +38,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _shopLoaded = false;
   final _shopNameCtrl = TextEditingController();
   final _shopPhoneCtrl = TextEditingController();
+  final _monthlyGoalCtrl = TextEditingController();
+  bool _goalLoaded = false;
   bool _notificationEnabled = false;
   bool _notifLoaded = false;
   int _notifHour = 9;
@@ -57,6 +61,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     super.initState();
     _loadTemplate();
     _loadShopSettings();
+    _loadGoal();
     _loadNotificationSettings();
     _loadPinState();
     _loadLastBackup();
@@ -147,10 +152,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _loadGoal() async {
+    final goal = await GoalService().getMonthlyGoal();
+    if (mounted) {
+      _monthlyGoalCtrl.text = goal != null ? goal.round().toString() : '';
+      setState(() => _goalLoaded = true);
+    }
+  }
+
+  Future<void> _saveGoal() async {
+    final amount = parseMoneyInput(_monthlyGoalCtrl.text);
+    await GoalService().setMonthlyGoal(amount);
+    if (mounted) _showSnack('Đã lưu mục tiêu tháng');
+  }
+
   @override
   void dispose() {
     _shopNameCtrl.dispose();
     _shopPhoneCtrl.dispose();
+    _monthlyGoalCtrl.dispose();
     super.dispose();
   }
 
@@ -1049,6 +1069,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   FilledButton(
                     onPressed: _shopLoaded ? _saveShopSettings : null,
                     child: const Text('Lưu thông tin bill'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 28),
+          _SectionLabel('Mục tiêu tháng này'),
+          const SizedBox(height: 10),
+          Card(
+            margin: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Theo dõi tiến độ doanh thu cá nhân trên màn Hôm nay.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _monthlyGoalCtrl,
+                    enabled: _goalLoaded,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Mục tiêu doanh thu (VND)',
+                      prefixIcon: Icon(Icons.flag_outlined),
+                      hintText: 'VD: 50000000',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: _goalLoaded ? _saveGoal : null,
+                    child: const Text('Lưu mục tiêu'),
                   ),
                 ],
               ),

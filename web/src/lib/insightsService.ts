@@ -13,20 +13,34 @@ import {
   getSalesSummaryForMonth,
   getTopSalesProductsByRevenue,
 } from './orderService';
+import { getLowStockProducts } from './productService';
+import { productStockStatus } from '@/types';
+import { getGoalProgress } from './goalService';
+import { getProductReengageSegments, SEGMENT_MIN_DAYS } from './segmentService';
 import { monthRangeFromDate } from './db';
 import { formatMoney } from './money';
+import { HOME_ANCHORS, STATS_ANCHORS } from './constants';
 
-export type ActionType = 'contact_hot' | 'contact' | 'collect_debt' | 're_engage';
+export type ActionType =
+  | 'contact_hot'
+  | 'contact'
+  | 'collect_debt'
+  | 're_engage'
+  | 're_engage_product'
+  | 'restock'
+  | 'restock_urgent';
 
 export interface DailyAction {
   id: string;
   type: ActionType;
-  customerId: number;
-  customerName: string;
+  customerId?: number;
+  productId?: number;
+  customerName?: string;
   title: string;
   subtitle: string;
   priority: number;
   amount?: number;
+  href?: string;
 }
 
 export interface AtRiskSummary {
@@ -44,6 +58,8 @@ export interface AtRiskSummary {
 export interface RevenueInsight {
   text: string;
   highlight?: string;
+  actionText?: string;
+  actionHref?: string;
 }
 
 export interface AchievementStats {
@@ -204,6 +220,33 @@ export async function getDailyActions(now = Date.now()): Promise<DailyAction[]> 
     });
   }
 
+  const lowStock = await getLowStockProducts();
+  for (const p of lowStock) {
+    if (!p.id) continue;
+    const status = productStockStatus(p);
+    actions.push({
+      id: `stock-${p.id}`,
+      type: status === 'out' ? 'restock_urgent' : 'restock',
+      productId: p.id,
+      title: status === 'out' ? `Hết hàng: ${p.name}` : `Sắp hết: ${p.name}`,
+      subtitle: `Còn ${p.stock_quantity} — cân nhắc nhập thêm`,
+      priority: status === 'out' ? 7 : 8,
+      href: '/products',
+    });
+  }
+
+  const segments = await getProductReengageSegments(now);
+  for (const seg of segments.slice(0, 2)) {
+    actions.push({
+      id: `segment-${seg.productId}`,
+      type: 're_engage_product',
+      productId: seg.productId,
+      title: `Nhắn ${seg.customers.length} khách mua ${seg.productName}`,
+      subtitle: `Mua cách đây ${SEGMENT_MIN_DAYS}+ ngày · chưa liên hệ gần đây`,
+      priority: 65,
+    });
+  }
+
   actions.sort((a, b) => a.priority - b.priority || (b.amount ?? 0) - (a.amount ?? 0));
   return actions.slice(0, MAX_ACTIONS);
 }
@@ -211,16 +254,39 @@ export async function getDailyActions(now = Date.now()): Promise<DailyAction[]> 
 export async function getRevenueInsights(now = new Date()): Promise<RevenueInsight[]> {
   const insights: RevenueInsight[] = [];
   const { start, end } = monthRangeFromDate(now);
-  const [summary, bySource, topProducts] = await Promise.all([
+  const [summary, bySource, topProducts, goalProgress] = await Promise.all([
     getSalesSummaryForMonth(now),
     getRevenueBySource(start, end),
     getTopSalesProductsByRevenue(start, end),
+    getGoalProgress(now),
   ]);
+
+  if (goalProgress) {
+    if (goalProgress.remaining <= 0) {
+      insights.push({
+        text: `Đã đạt mục tiêu tháng ${formatMoney(goalProgress.goal)} — tiếp tục duy trì đà!`,
+        highlight: formatMoney(goalProgress.goal),
+      });
+    } else {
+      const ordersHint =
+        goalProgress.ordersNeeded != null && goalProgress.ordersNeeded > 0
+          ? ` — cần thêm khoảng ${goalProgress.ordersNeeded} đơn`
+          : '';
+      insights.push({
+        text: `Mục tiêu tháng còn ${formatMoney(goalProgress.remaining)}${ordersHint}`,
+        highlight: formatMoney(goalProgress.remaining),
+        actionText: '→ Xem tiền của tôi',
+        actionHref: '/stats',
+      });
+    }
+  }
 
   if (summary.debt > 0) {
     insights.push({
-      text: `Còn ${formatMoney(summary.debt)} công nợ tháng này — ưu tiên thu trước khi chốt đơn mới`,
+      text: `Còn ${formatMoney(summary.debt)} chưa thu tháng này — ưu tiên thu trước khi chốt đơn mới`,
       highlight: formatMoney(summary.debt),
+      actionText: '→ Xem ai nợ tôi',
+      actionHref: '/debts',
     });
   }
 
@@ -229,8 +295,10 @@ export async function getRevenueInsights(now = new Date()): Promise<RevenueInsig
     const pct = Math.round((top.revenue / summary.revenue) * 100);
     if (pct >= 20) {
       insights.push({
-        text: `${top.label} tạo ${pct}% doanh thu tháng này`,
+        text: `${top.label} tạo ${pct}% doanh thu tháng này — tập trung thêm kênh này`,
         highlight: top.label,
+        actionText: '→ Xem chi tiết nguồn',
+        actionHref: `/stats#${STATS_ANCHORS.revenueBySource}`,
       });
     }
     if (bySource.length >= 2) {
@@ -248,14 +316,18 @@ export async function getRevenueInsights(now = new Date()): Promise<RevenueInsig
     const top = topProducts[0];
     const pct = Math.round(((top.revenue as number) / summary.revenue) * 100);
     insights.push({
-      text: `"${top.product}" đang bán chạy nhất (${pct}% doanh thu tháng)`,
+      text: `"${top.product}" đang bán chạy nhất (${pct}% doanh thu tháng) — ưu tiên nhắn khách cũ mua SP này`,
       highlight: top.product as string,
+      actionText: '→ Xem việc hôm nay',
+      actionHref: `/#${HOME_ANCHORS.dailyActions}`,
     });
   }
 
   if (insights.length === 0 && summary.revenue === 0) {
     insights.push({
       text: 'Chưa có doanh thu tháng này — tập trung chăm khách Nóng và Tiềm năng trước',
+      actionText: '→ Mở Sổ khách',
+      actionHref: '/customers',
     });
   }
 

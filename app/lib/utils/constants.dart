@@ -41,14 +41,35 @@ class AppConstants {
   static const String keyMilestoneShown = 'milestone_shown';
   static const String keyShopName = 'shop_name';
   static const String keyShopPhone = 'shop_phone';
+  static const String keyMonthlyRevenueGoal = 'monthly_revenue_goal';
 
   static const String appName = 'Salenote';
+  static const String appTagline = 'Trợ lý kinh doanh cá nhân';
+  static const String navHomeLabel = 'Hôm nay';
+  static const String navCustomersLabel = 'Sổ khách';
+  static const String navStatsLabel = 'Tiền của tôi';
+  static const String navDebtsLabel = 'Ai nợ tôi';
 
-  // Notification defaults
+  static const int backupVersion = 3;
+
   static const int defaultNotifHour = 9;
   static const int defaultNotifMinute = 0;
 
-  static const int backupVersion = 2;
+  static const List<Map<String, String>> expenseCategories = [
+    {'key': 'stock', 'label': 'Nhập hàng'},
+    {'key': 'shipping', 'label': 'Ship / vận chuyển'},
+    {'key': 'ads', 'label': 'Quảng cáo'},
+    {'key': 'rent', 'label': 'Thuê mặt bằng'},
+    {'key': 'utilities', 'label': 'Điện nước'},
+    {'key': 'other', 'label': 'Khác'},
+  ];
+
+  static String expenseLabel(String key) {
+    for (final c in expenseCategories) {
+      if (c['key'] == key) return c['label']!;
+    }
+    return key;
+  }
 
   static const List<Map<String, String>> customerSources = [
     {'key': 'facebook', 'label': 'Facebook'},

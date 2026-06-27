@@ -71,7 +71,7 @@ class GuideScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        l.appTagline,
+                        '${l.appTagline} · v$guideVersion',
                         style: TextStyle(
                           color: Colors.white.withAlpha(200),
                           fontSize: 12,
@@ -113,6 +113,7 @@ class GuideScreen extends StatelessWidget {
                   Text(
                     '• Tạo Sản phẩm trước, thêm khách kèm nguồn\n'
                     '• Ghi đơn thay vì chỉ đánh dấu chốt\n'
+                    '• Danh sách dài: cuộn xuống cuối để xem thêm\n'
                     '• Backup JSON mỗi tuần — đồng bộ với web\n'
                     '• Xem doanh thu theo nguồn trong Thống kê',
                     style: TextStyle(fontSize: 13, height: 1.5),

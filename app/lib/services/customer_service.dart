@@ -68,6 +68,50 @@ class CustomerService {
   Future<List<Customer>> getNeedsAttention() => _db.getNeedsAttention();
   Future<List<Customer>> getUpcoming() => _db.getUpcoming();
   Future<List<Customer>> getAllCustomers() => _db.getAllCustomers();
+
+  Future<List<Customer>> getCustomersPaged({
+    required int page,
+    required int pageSize,
+    String query = '',
+    String status = 'all',
+    String source = 'all',
+    String orderBy = 'next_action_at ASC',
+  }) =>
+      _db.getCustomersPaged(
+        page: page,
+        pageSize: pageSize,
+        query: query,
+        status: status,
+        source: source,
+        orderBy: orderBy,
+      );
+
+  Future<int> countCustomers({
+    String query = '',
+    String status = 'all',
+    String source = 'all',
+  }) =>
+      _db.countCustomers(query: query, status: status, source: source);
+
+  Future<int> countAllCustomers() => _db.countAllCustomers();
+
+  Future<Map<String, int>> getCustomerStatusCounts() =>
+      _db.getCustomerStatusCounts();
+
+  Future<List<Customer>> getCustomersByIds(List<int> ids) =>
+      _db.getCustomersByIds(ids);
+
+  Future<List<Interaction>> getInteractionsPaged(
+    int customerId, {
+    required int page,
+    int pageSize = 20,
+  }) {
+    final offset = (page - 1) * pageSize;
+    return _db.getInteractionsPaged(customerId, limit: pageSize, offset: offset);
+  }
+
+  Future<int> countInteractions(int customerId) =>
+      _db.countInteractions(customerId);
   Future<Customer?> getCustomer(int id) => _db.getCustomer(id);
   Future<List<Interaction>> getInteractions(int customerId) =>
       _db.getInteractions(customerId);

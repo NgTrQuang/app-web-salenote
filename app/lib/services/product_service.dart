@@ -7,6 +7,20 @@ class ProductService {
   Future<List<Product>> getAllProducts({bool activeOnly = false}) =>
       _db.getAllProducts(activeOnly: activeOnly);
 
+  Future<int> countProducts({bool activeOnly = false}) =>
+      _db.countProducts(activeOnly: activeOnly);
+
+  Future<List<Product>> getProductsPaged({
+    required int page,
+    required int pageSize,
+    bool activeOnly = false,
+  }) =>
+      _db.getProductsPaged(
+        page: page,
+        pageSize: pageSize,
+        activeOnly: activeOnly,
+      );
+
   Future<Product?> getProduct(int id) => _db.getProduct(id);
 
   Future<Product> addProduct({

@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import '../models/product.dart';
 import '../utils/money.dart';
+import 'infinite_scroll.dart';
 
-const _pageSize = 20;
-
-/// Chọn sản phẩm có tìm kiếm và phân trang — tránh dropdown dài và tràn chuỗi.
+/// Chọn sản phẩm có tìm kiếm và cuộn tải thêm — tránh dropdown dài.
 class ProductPickerField extends StatelessWidget {
   final List<Product> products;
   final int? value;
@@ -79,29 +78,54 @@ class _ProductPickerSheet extends StatefulWidget {
 
 class _ProductPickerSheetState extends State<_ProductPickerSheet> {
   final _searchCtrl = TextEditingController();
-  int _page = 1;
+  final _scrollCtrl = ScrollController();
+  final _visible = ClientVisibleList();
+  final _loadGate = LoadMoreGate();
   String _query = '';
-
-  @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
-  }
 
   List<Product> get _filtered {
     final q = _query.trim().toLowerCase();
     if (q.isEmpty) return widget.products;
-    return widget.products.where((p) => p.name.toLowerCase().contains(q)).toList();
+    return widget.products
+        .where((p) => p.name.toLowerCase().contains(q))
+        .toList();
+  }
+
+  List<Product> get _slice => _visible.slice(_filtered);
+
+  bool get _hasMore => _visible.hasMore(_filtered);
+
+  @override
+  void initState() {
+    super.initState();
+    bindScrollLoadMore(
+      _scrollCtrl,
+      hasMore: () => _hasMore,
+      onLoadMore: () {
+        setState(() => _visible.loadMore(_filtered));
+        ensureScrollFill(
+          controller: _scrollCtrl,
+          hasMore: _hasMore,
+          onLoadMore: () => setState(() => _visible.loadMore(_filtered)),
+        );
+      },
+      gate: _loadGate,
+    );
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    _scrollCtrl.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final filtered = _filtered;
-    final totalPages = (filtered.length / _pageSize).ceil().clamp(1, 999999);
-    final safePage = _page.clamp(1, totalPages);
-    final start = (safePage - 1) * _pageSize;
-    final slice = filtered.skip(start).take(_pageSize).toList();
+    final slice = _slice;
     final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final maxH = MediaQuery.of(context).size.height * 0.55;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottom),
@@ -110,7 +134,10 @@ class _ProductPickerSheetState extends State<_ProductPickerSheet> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text('Chọn sản phẩm',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
           TextField(
             controller: _searchCtrl,
@@ -120,12 +147,14 @@ class _ProductPickerSheetState extends State<_ProductPickerSheet> {
             ),
             onChanged: (v) => setState(() {
               _query = v;
-              _page = 1;
+              _visible.reset();
             }),
           ),
           const SizedBox(height: 8),
-          Flexible(
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxH),
             child: ListView(
+              controller: _scrollCtrl,
               shrinkWrap: true,
               children: [
                 ListTile(
@@ -151,25 +180,17 @@ class _ProductPickerSheetState extends State<_ProductPickerSheet> {
                   const Padding(
                     padding: EdgeInsets.all(24),
                     child: Center(child: Text('Không tìm thấy')),
+                  )
+                else
+                  LoadMoreFooter(
+                    hasMore: _hasMore,
+                    loading: false,
+                    visible: slice.length,
+                    total: filtered.length,
                   ),
               ],
             ),
           ),
-          if (totalPages > 1)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                IconButton(
-                  onPressed: safePage > 1 ? () => setState(() => _page = safePage - 1) : null,
-                  icon: const Icon(Icons.chevron_left),
-                ),
-                Text('$safePage / $totalPages'),
-                IconButton(
-                  onPressed: safePage < totalPages ? () => setState(() => _page = safePage + 1) : null,
-                  icon: const Icon(Icons.chevron_right),
-                ),
-              ],
-            ),
         ],
       ),
     );

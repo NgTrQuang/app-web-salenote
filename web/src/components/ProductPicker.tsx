@@ -1,9 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { Product } from '@/types';
 import { formatMoney } from '@/lib/money';
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { FieldLabel, SecondaryButton, TextInput } from './ui';
-
-const PAGE_SIZE = 20;
 
 interface ProductPickerProps {
   products: Product[];
@@ -14,7 +13,6 @@ interface ProductPickerProps {
 export function ProductPicker({ products, value, onChange }: ProductPickerProps) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
-  const [page, setPage] = useState(1);
 
   const selected = value !== '' ? products.find((p) => p.id === value) : undefined;
 
@@ -24,15 +22,13 @@ export function ProductPicker({ products, value, onChange }: ProductPickerProps)
     return products.filter((p) => p.name.toLowerCase().includes(q));
   }, [products, query]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const safePage = Math.min(page, totalPages);
-  const slice = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const scrollRef = useRef<HTMLUListElement>(null);
+  const { slice, hasMore, sentinelRef, total } = useInfiniteScroll(filtered, undefined, scrollRef);
 
   function pick(id: number | '') {
     onChange(id);
     setOpen(false);
     setQuery('');
-    setPage(1);
   }
 
   return (
@@ -59,14 +55,14 @@ export function ProductPicker({ products, value, onChange }: ProductPickerProps)
               <TextInput
                 className="mt-3"
                 value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setPage(1);
-                }}
+                onChange={(e) => setQuery(e.target.value)}
                 placeholder="Tìm tên sản phẩm..."
               />
             </div>
-            <ul className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+            <ul
+              ref={scrollRef}
+              className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800"
+            >
               <li>
                 <button
                   type="button"
@@ -96,30 +92,12 @@ export function ProductPicker({ products, value, onChange }: ProductPickerProps)
               {slice.length === 0 && (
                 <li className="px-4 py-6 text-center text-sm text-slate-500">Không tìm thấy</li>
               )}
+              {hasMore && (
+                <li ref={sentinelRef} className="px-4 py-3 text-center text-xs text-slate-400">
+                  Cuộn để xem thêm ({slice.length}/{total})
+                </li>
+              )}
             </ul>
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between border-t border-slate-200 px-4 py-2 text-sm dark:border-slate-800">
-                <button
-                  type="button"
-                  disabled={safePage <= 1}
-                  onClick={() => setPage(safePage - 1)}
-                  className="disabled:opacity-40"
-                >
-                  Trước
-                </button>
-                <span>
-                  {safePage}/{totalPages}
-                </span>
-                <button
-                  type="button"
-                  disabled={safePage >= totalPages}
-                  onClick={() => setPage(safePage + 1)}
-                  className="disabled:opacity-40"
-                >
-                  Sau
-                </button>
-              </div>
-            )}
             <div className="border-t border-slate-200 p-3 dark:border-slate-800">
               <SecondaryButton type="button" className="w-full" onClick={() => setOpen(false)}>
                 Đóng

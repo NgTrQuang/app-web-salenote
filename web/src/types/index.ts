@@ -69,12 +69,29 @@ export interface Setting {
   value: string;
 }
 
+export type ExpenseCategory =
+  | 'stock'
+  | 'shipping'
+  | 'ads'
+  | 'rent'
+  | 'utilities'
+  | 'other';
+
+export interface Expense {
+  id?: number;
+  category: ExpenseCategory;
+  amount: number;
+  note?: string | null;
+  created_at: number;
+}
+
 export interface BackupData {
   version?: number;
   customers: Customer[];
   interactions: Interaction[];
   products?: Product[];
   orders?: Order[];
+  expenses?: Expense[];
 }
 
 export interface MonthlyStats {

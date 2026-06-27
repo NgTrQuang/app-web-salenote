@@ -6,8 +6,10 @@ import '../screens/products_screen.dart';
 import '../screens/orders_screen.dart';
 import '../screens/add_order_screen.dart';
 import '../screens/stats_screen.dart';
+import '../screens/debts_screen.dart';
 import '../screens/guide_screen.dart';
 import '../screens/settings_screen.dart';
+import '../utils/constants.dart';
 import 'app_logo.dart';
 
 /// Sidebar tương đương web Layout — 7 mục chính + ghi đơn nhanh
@@ -64,11 +66,12 @@ class AppDrawer extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 children: [
-                  _item(context, 'home', Icons.dashboard_outlined, 'Bảng điều khiển', () => goHome(context)),
-                  _item(context, 'customers', Icons.people_outline, l.allCustomers, () => _push(context, const AllCustomersScreen())),
+                  _item(context, 'home', Icons.today_outlined, AppConstants.navHomeLabel, () => goHome(context)),
+                  _item(context, 'customers', Icons.people_outline, AppConstants.navCustomersLabel, () => _push(context, const AllCustomersScreen())),
                   _item(context, 'products', Icons.inventory_2_outlined, 'Sản phẩm', () => _push(context, const ProductsScreen())),
                   _item(context, 'orders', Icons.receipt_long_outlined, 'Đơn hàng', () => _push(context, const OrdersScreen())),
-                  _item(context, 'stats', Icons.bar_chart_outlined, l.stats, () => _push(context, const StatsScreen())),
+                  _item(context, 'debts', Icons.payments_outlined, AppConstants.navDebtsLabel, () => _push(context, const DebtsScreen())),
+                  _item(context, 'stats', Icons.bar_chart_outlined, AppConstants.navStatsLabel, () => _push(context, const StatsScreen())),
                   _item(context, 'guide', Icons.menu_book_outlined, l.guideTitle, () => _push(context, const GuideScreen())),
                   _item(context, 'settings', Icons.settings_outlined, l.settings, () => _push(context, const SettingsScreen())),
                 ],

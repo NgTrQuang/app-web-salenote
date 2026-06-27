@@ -3,6 +3,7 @@ import { STATUSES, STATUS_LABELS, CUSTOMER_SOURCES } from '@/lib/constants';
 import type { CustomerStatus } from '@/types';
 import { getAllProducts } from '@/lib/productService';
 import type { Product } from '@/types';
+import { ProductPicker } from './ProductPicker';
 import { FieldLabel, TextInput, TextArea } from './ui';
 
 export interface CustomerFormValues {
@@ -100,20 +101,13 @@ export function CustomerForm({ values, onChange }: CustomerFormProps) {
       <div>
         <FieldLabel>Sản phẩm quan tâm</FieldLabel>
         {products.length > 0 && (
-          <select
-            value={values.product_id}
-            onChange={(e) =>
-              selectCatalogProduct(e.target.value === '' ? '' : Number(e.target.value))
-            }
-            className="mb-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900"
-          >
-            <option value="">— Chọn từ danh mục —</option>
-            {products.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
+          <div className="mb-2">
+            <ProductPicker
+              products={products}
+              value={values.product_id}
+              onChange={(id) => selectCatalogProduct(id)}
+            />
+          </div>
         )}
         <TextInput
           value={values.product}

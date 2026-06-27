@@ -1,11 +1,11 @@
-# Salenote — Sổ Sale Cá Nhân
+# Salenote — Trợ lý kinh doanh cá nhân
 
 Monorepo phát triển **web trước, app sau**.
 
 | Thư mục | Mô tả |
 |---------|--------|
-| [`web/`](web/) | **Salenote PWA** — nơi phát triển chính (React + IndexedDB) |
-| [`app/`](app/) | Flutter mobile Sổ Khách v2.2 — giữ ổn định đến khi port từ web |
+| [`web/`](web/) | **Salenote PWA v2.1** — React + IndexedDB (phát triển chính) |
+| [`app/`](app/) | Flutter mobile **v2.3** — port sau khi web ổn định |
 
 ## Bắt đầu (web)
 
@@ -21,8 +21,8 @@ Xem [ROADMAP.md](ROADMAP.md).
 
 ## Định vị
 
-> Chăm khách, ghi đơn, biết tiền — dữ liệu trên máy bạn.
+> **Trợ lý kinh doanh cá nhân** — không quên khách, không quên tiền, biết việc hôm nay. Dữ liệu trên máy bạn.
 
-- **Phase 0** (đang làm): Web đồng bộ tính năng chăm khách từ app
-- **Phase 1**: Sản phẩm + đơn hàng + dashboard tiền (web trước)
-- **Phase 3**: Port sang Flutter app
+- **Web v2.1**: Hôm nay (action-first), mục tiêu tháng, Ai nợ tôi, tồn kho trong việc cần làm
+- **Web & App v2**: Sản phẩm, đơn hàng, snapshot giao hàng, bill PDF, backup JSON chung
+- Xem hướng dẫn: **Cài đặt → Hướng dẫn** (web: `/guide`)

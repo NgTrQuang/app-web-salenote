@@ -8,9 +8,8 @@ import '../utils/constants.dart';
 import '../utils/money.dart';
 import '../widgets/app_drawer.dart';
 import '../widgets/order_payment_sheet.dart';
+import '../widgets/infinite_scroll.dart';
 import 'add_order_screen.dart';
-
-const _pageSize = 20;
 
 class OrdersScreen extends StatefulWidget {
   const OrdersScreen({super.key});
@@ -25,38 +24,83 @@ class _OrdersScreenState extends State<OrdersScreen> {
   List<Order> _orders = [];
   Map<int, Customer> _customers = {};
   bool _loading = true;
+  bool _loadingMore = false;
   int _page = 1;
   int _total = 0;
+  final _scrollCtrl = ScrollController();
+  final _loadGate = LoadMoreGate();
+
+  bool get _hasMore => _orders.length < _total;
 
   @override
   void initState() {
     super.initState();
+    bindScrollLoadMore(
+      _scrollCtrl,
+      hasMore: () => _hasMore && !_loading && !_loadingMore,
+      onLoadMore: _loadMore,
+      gate: _loadGate,
+    );
     _load();
   }
 
-  Future<void> _load({int? page}) async {
-    if (page != null) _page = page;
-    setState(() => _loading = true);
-    final orders = await _orderService.getOrdersPaged(_page, _pageSize);
-    final total = await _orderService.countOrders();
-    final customers = await _customerService.getAllCustomers();
-    if (mounted) {
-      setState(() {
-        _orders = orders;
-        _total = total;
-        _customers = {for (final c in customers) c.id!: c};
-        _loading = false;
-      });
-    }
+  @override
+  void dispose() {
+    _scrollCtrl.dispose();
+    super.dispose();
   }
 
-  int get _totalPages => (_total / _pageSize).ceil().clamp(1, 999999);
+  Future<void> _load() async {
+    _page = 1;
+    setState(() => _loading = true);
+    final orders = await _orderService.getOrdersPaged(_page, kDefaultPageSize);
+    final total = await _orderService.countOrders();
+    final ids = orders.map((o) => o.customerId).toSet().toList();
+    final customers = await _customerService.getCustomersByIds(ids);
+    if (!mounted) return;
+    setState(() {
+      _orders = orders;
+      _total = total;
+      _customers = {for (final c in customers) c.id!: c};
+      _loading = false;
+    });
+    ensureScrollFill(
+      controller: _scrollCtrl,
+      hasMore: _hasMore,
+      onLoadMore: _loadMore,
+    );
+  }
+
+  Future<void> _loadMore() async {
+    if (!_hasMore || _loading || _loadingMore) return;
+    setState(() => _loadingMore = true);
+    final nextPage = _page + 1;
+    final orders =
+        await _orderService.getOrdersPaged(nextPage, kDefaultPageSize);
+    final ids = orders.map((o) => o.customerId).toSet().toList();
+    final customers = await _customerService.getCustomersByIds(ids);
+    if (!mounted) return;
+    setState(() {
+      _page = nextPage;
+      final existing = _orders.map((o) => o.id).toSet();
+      _orders.addAll(orders.where((o) => !existing.contains(o.id)));
+      for (final c in customers) {
+        _customers[c.id!] = c;
+      }
+      _loadingMore = false;
+    });
+    ensureScrollFill(
+      controller: _scrollCtrl,
+      hasMore: _hasMore,
+      onLoadMore: _loadMore,
+    );
+  }
 
   Future<void> _newOrder() async {
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const AddOrderScreen()),
     );
-    _load(page: 1);
+    _load();
   }
 
   void _openOrder(Order o) {
@@ -98,98 +142,84 @@ class _OrdersScreenState extends State<OrdersScreen> {
                     ],
                   ),
                 )
-              : Column(
-                  children: [
-                    Expanded(
-                      child: RefreshIndicator(
-                        onRefresh: () => _load(),
-                        child: ListView.separated(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                          itemCount: _orders.length,
-                          separatorBuilder: (_, __) => const SizedBox(height: 8),
-                          itemBuilder: (ctx, i) {
-                            final o = _orders[i];
-                            return Card(
-                              child: InkWell(
-                                onTap: () => _openOrder(o),
-                                borderRadius: BorderRadius.circular(12),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        '${o.productName} × ${o.quantity}',
-                                        style: const TextStyle(fontWeight: FontWeight.w600),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        '${_customers[o.customerId]?.name ?? 'Khách #${o.customerId}'} · '
-                                        '${DateFormat('dd/MM/yyyy').format(DateTime.fromMillisecondsSinceEpoch(o.createdAt))}',
-                                        style: const TextStyle(fontSize: 12, color: Colors.grey),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Wrap(
-                                        spacing: 12,
-                                        runSpacing: 4,
-                                        children: [
-                                          _Chip('DT', formatMoney(o.revenue)),
-                                          _Chip('Lời', formatMoney(o.profit), Colors.green.shade700),
-                                          _Chip('HH', formatMoney(o.commission)),
-                                          _Chip(
-                                            'Nợ',
-                                            formatMoney(o.debt),
-                                            o.debt > 0 ? Colors.red : Colors.grey,
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        AppConstants.paymentLabels[o.paymentStatus] ?? o.paymentStatus,
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          color: o.paymentStatus == 'paid'
-                                              ? Colors.green
-                                              : o.paymentStatus == 'partial'
-                                                  ? Colors.orange
-                                                  : Colors.red,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    if (_totalPages > 1)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('${_page * _pageSize - _pageSize + 1}–${(_page * _pageSize).clamp(0, _total)} / $_total'),
-                            Row(
+              : RefreshIndicator(
+                  onRefresh: _load,
+                  child: ListView.separated(
+                    controller: _scrollCtrl,
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+                    itemCount: _orders.length + 1,
+                    separatorBuilder: (_, i) => i < _orders.length - 1
+                        ? const SizedBox(height: 8)
+                        : const SizedBox.shrink(),
+                    itemBuilder: (ctx, i) {
+                      if (i >= _orders.length) {
+                        return LoadMoreFooter(
+                          hasMore: _hasMore,
+                          loading: _loadingMore,
+                          visible: _orders.length,
+                          total: _total,
+                        );
+                      }
+                      final o = _orders[i];
+                      return Card(
+                        child: InkWell(
+                          onTap: () => _openOrder(o),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                IconButton(
-                                  onPressed: _page > 1 ? () => _load(page: _page - 1) : null,
-                                  icon: const Icon(Icons.chevron_left),
+                                Text(
+                                  '${o.productName} × ${o.quantity}',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.w600),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                Text('$_page / $_totalPages'),
-                                IconButton(
-                                  onPressed: _page < _totalPages ? () => _load(page: _page + 1) : null,
-                                  icon: const Icon(Icons.chevron_right),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${_customers[o.customerId]?.name ?? 'Khách #${o.customerId}'} · '
+                                  '${DateFormat('dd/MM/yyyy').format(DateTime.fromMillisecondsSinceEpoch(o.createdAt))}',
+                                  style: const TextStyle(
+                                      fontSize: 12, color: Colors.grey),
+                                ),
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 12,
+                                  runSpacing: 4,
+                                  children: [
+                                    _Chip('DT', formatMoney(o.revenue)),
+                                    _Chip('Lời', formatMoney(o.profit),
+                                        Colors.green.shade700),
+                                    _Chip('HH', formatMoney(o.commission)),
+                                    _Chip(
+                                      'Nợ',
+                                      formatMoney(o.debt),
+                                      o.debt > 0 ? Colors.red : Colors.grey,
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  AppConstants.paymentLabels[o.paymentStatus] ??
+                                      o.paymentStatus,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: o.paymentStatus == 'paid'
+                                        ? Colors.green
+                                        : o.paymentStatus == 'partial'
+                                            ? Colors.orange
+                                            : Colors.red,
+                                  ),
                                 ),
                               ],
                             ),
-                          ],
+                          ),
                         ),
-                      ),
-                  ],
+                      );
+                    },
+                  ),
                 ),
     );
   }

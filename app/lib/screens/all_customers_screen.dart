@@ -5,6 +5,7 @@ import '../services/customer_service.dart';
 import '../utils/constants.dart';
 import '../widgets/customer_card.dart';
 import '../widgets/app_drawer.dart';
+import '../widgets/infinite_scroll.dart';
 import 'customer_detail_screen.dart';
 
 class AllCustomersScreen extends StatefulWidget {
@@ -18,66 +19,115 @@ enum _SortOrder { newest, overdue, nameAz }
 
 class _AllCustomersScreenState extends State<AllCustomersScreen> {
   final _service = CustomerService();
-  List<Customer> _all = [];
-  List<Customer> _filtered = [];
+  List<Customer> _customers = [];
+  Map<String, int> _statusCounts = {'all': 0};
   String _filterStatus = 'all';
   String _filterSource = 'all';
   String _searchQuery = '';
   bool _loading = true;
-  _SortOrder _sortOrder = _SortOrder.newest;
+  _SortOrder _sortOrder = _SortOrder.overdue;
+  int _page = 1;
+  int _totalFiltered = 0;
+  int _totalAll = 0;
+  bool _loadingMore = false;
   final _searchCtrl = TextEditingController();
+  final _scrollCtrl = ScrollController();
+  final _loadGate = LoadMoreGate();
+
+  bool get _hasMore => _customers.length < _totalFiltered;
 
   @override
   void initState() {
     super.initState();
+    bindScrollLoadMore(
+      _scrollCtrl,
+      hasMore: () => _hasMore && !_loading && !_loadingMore,
+      onLoadMore: _loadMore,
+      gate: _loadGate,
+    );
     _load();
   }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _scrollCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
-    final all = await _service.getAllCustomers();
-    if (!mounted) return;
-    setState(() {
-      _all = all;
-      _loading = false;
-      _applyFilter();
-    });
-  }
-
-  void _applyFilter() {
-    var list = _all;
-    if (_filterStatus != 'all') {
-      list = list.where((c) => c.status == _filterStatus).toList();
-    }
-    list = _service.filterBySource(list, _filterSource);
-    if (_searchQuery.isNotEmpty) {
-      final q = _searchQuery.toLowerCase();
-      list = list.where((c) {
-        return c.name.toLowerCase().contains(q) ||
-            (c.phone?.contains(q) ?? false) ||
-            (c.product?.toLowerCase().contains(q) ?? false);
-      }).toList();
-    }
-    list = List.of(list);
+  String _orderBySql() {
     switch (_sortOrder) {
       case _SortOrder.newest:
-        list.sort((a, b) => (b.createdAt ?? 0).compareTo(a.createdAt ?? 0));
-        break;
+        return 'created_at DESC';
       case _SortOrder.overdue:
-        list.sort((a, b) => (a.nextActionAt ?? 0).compareTo(b.nextActionAt ?? 0));
-        break;
+        return 'next_action_at ASC';
       case _SortOrder.nameAz:
-        list.sort((a, b) => a.name.compareTo(b.name));
-        break;
+        return 'name COLLATE NOCASE ASC';
     }
-    _filtered = list;
   }
+
+  Future<void> _load() async {
+    _page = 1;
+    setState(() => _loading = true);
+    final results = await Future.wait([
+      _service.getCustomersPaged(
+        page: _page,
+        pageSize: kDefaultPageSize,
+        query: _searchQuery,
+        status: _filterStatus,
+        source: _filterSource,
+        orderBy: _orderBySql(),
+      ),
+      _service.countCustomers(
+        query: _searchQuery,
+        status: _filterStatus,
+        source: _filterSource,
+      ),
+      _service.countAllCustomers(),
+      _service.getCustomerStatusCounts(),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _customers = results[0] as List<Customer>;
+      _totalFiltered = results[1] as int;
+      _totalAll = results[2] as int;
+      _statusCounts = results[3] as Map<String, int>;
+      _loading = false;
+    });
+    ensureScrollFill(
+      controller: _scrollCtrl,
+      hasMore: _hasMore,
+      onLoadMore: _loadMore,
+    );
+  }
+
+  Future<void> _loadMore() async {
+    if (!_hasMore || _loading || _loadingMore) return;
+    setState(() => _loadingMore = true);
+    final nextPage = _page + 1;
+    final list = await _service.getCustomersPaged(
+      page: nextPage,
+      pageSize: kDefaultPageSize,
+      query: _searchQuery,
+      status: _filterStatus,
+      source: _filterSource,
+      orderBy: _orderBySql(),
+    );
+    if (!mounted) return;
+    setState(() {
+      _page = nextPage;
+      final existing = _customers.map((c) => c.id).toSet();
+      _customers.addAll(list.where((c) => !existing.contains(c.id)));
+      _loadingMore = false;
+    });
+    ensureScrollFill(
+      controller: _scrollCtrl,
+      hasMore: _hasMore,
+      onLoadMore: _loadMore,
+    );
+  }
+
+  void _resetFiltersAndLoad() => _load();
 
   void _showSortSheet() {
     showModalBottomSheet(
@@ -116,12 +166,9 @@ class _AllCustomersScreenState extends State<AllCustomersScreen> {
                             : Colors.grey.shade500),
                     title: Text(label,
                         style: TextStyle(
-                          fontWeight: selected
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                          color: selected
-                              ? theme.colorScheme.primary
-                              : null,
+                          fontWeight:
+                              selected ? FontWeight.w700 : FontWeight.w500,
+                          color: selected ? theme.colorScheme.primary : null,
                         )),
                     trailing: selected
                         ? Icon(Icons.check_rounded,
@@ -129,10 +176,8 @@ class _AllCustomersScreenState extends State<AllCustomersScreen> {
                         : null,
                     onTap: () {
                       Navigator.pop(ctx);
-                      setState(() {
-                        _sortOrder = order;
-                        _applyFilter();
-                      });
+                      setState(() => _sortOrder = order);
+                      _resetFiltersAndLoad();
                     },
                   );
                 }),
@@ -144,28 +189,6 @@ class _AllCustomersScreenState extends State<AllCustomersScreen> {
     );
   }
 
-  void _onSearch(String value) {
-    setState(() {
-      _searchQuery = value;
-      _applyFilter();
-    });
-  }
-
-  void _clearSearch() {
-    _searchCtrl.clear();
-    setState(() {
-      _searchQuery = '';
-      _applyFilter();
-    });
-  }
-
-  void _onFilter(String status) {
-    setState(() {
-      _filterStatus = status;
-      _applyFilter();
-    });
-  }
-
   Future<void> _openDetail(Customer c) async {
     await Navigator.push(
       context,
@@ -174,30 +197,25 @@ class _AllCustomersScreenState extends State<AllCustomersScreen> {
     _load();
   }
 
-  Map<String, int> _buildCounts() {
-    final counts = <String, int>{'all': _all.length};
-    for (final s in AppConstants.statuses) {
-      counts[s] = _all.where((c) => c.status == s).length;
-    }
-    return counts;
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l = AppLocalizations.of(context);
     final bg = theme.scaffoldBackgroundColor;
     final isDark = theme.brightness == Brightness.dark;
-    final fillColor = isDark
-        ? theme.colorScheme.surfaceVariant
-        : Colors.grey.shade100;
+    final fillColor =
+        isDark ? theme.colorScheme.surfaceVariant : Colors.grey.shade100;
+
+    final subtitle = _totalFiltered == _totalAll
+        ? '$_totalAll khách'
+        : '$_totalFiltered / $_totalAll khách';
 
     return Scaffold(
       backgroundColor: bg,
       drawer: const AppDrawer(current: 'customers'),
       body: CustomScrollView(
+        controller: _scrollCtrl,
         slivers: [
-          // ── Pinned AppBar + Search + Filter ───────────────────
           SliverAppBar(
             pinned: true,
             floating: false,
@@ -206,16 +224,22 @@ class _AllCustomersScreenState extends State<AllCustomersScreen> {
             scrolledUnderElevation: 0,
             titleSpacing: 4,
             toolbarHeight: 56,
-            title: Text(
-              l.allCustomers,
-              style: const TextStyle(fontWeight: FontWeight.w700),
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(l.allCustomers,
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
+                Text(subtitle,
+                    style: TextStyle(
+                        fontSize: 11, color: Colors.grey.shade600)),
+              ],
             ),
             actions: [
               IconButton(
                 onPressed: _showSortSheet,
                 tooltip: 'Sắp xếp',
                 icon: Badge(
-                  isLabelVisible: _sortOrder != _SortOrder.newest,
+                  isLabelVisible: _sortOrder != _SortOrder.overdue,
                   smallSize: 8,
                   child: const Icon(Icons.sort_rounded),
                 ),
@@ -227,7 +251,6 @@ class _AllCustomersScreenState extends State<AllCustomersScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Search bar
                   Container(
                     color: bg,
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -237,7 +260,10 @@ class _AllCustomersScreenState extends State<AllCustomersScreen> {
                         height: 44,
                         child: TextField(
                           controller: _searchCtrl,
-                          onChanged: _onSearch,
+                          onChanged: (v) {
+                            _searchQuery = v;
+                            _resetFiltersAndLoad();
+                          },
                           textAlignVertical: TextAlignVertical.center,
                           style: const TextStyle(fontSize: 14),
                           decoration: InputDecoration(
@@ -251,9 +277,14 @@ class _AllCustomersScreenState extends State<AllCustomersScreen> {
                                 size: 20, color: Colors.grey.shade400),
                             suffixIcon: value.text.isNotEmpty
                                 ? GestureDetector(
-                                    onTap: _clearSearch,
+                                    onTap: () {
+                                      _searchCtrl.clear();
+                                      _searchQuery = '';
+                                      _resetFiltersAndLoad();
+                                    },
                                     child: Icon(Icons.cancel_rounded,
-                                        size: 18, color: Colors.grey.shade400),
+                                        size: 18,
+                                        color: Colors.grey.shade400),
                                   )
                                 : null,
                             border: OutlineInputBorder(
@@ -276,11 +307,13 @@ class _AllCustomersScreenState extends State<AllCustomersScreen> {
                       ),
                     ),
                   ),
-                  // Filter chips
                   _FilterBar(
                     selected: _filterStatus,
-                    counts: _buildCounts(),
-                    onSelect: _onFilter,
+                    counts: _statusCounts,
+                    onSelect: (s) {
+                      _filterStatus = s;
+                      _resetFiltersAndLoad();
+                    },
                     bg: bg,
                   ),
                   SizedBox(
@@ -292,26 +325,26 @@ class _AllCustomersScreenState extends State<AllCustomersScreen> {
                         _SourceChip(
                           label: 'Nguồn: Tất cả',
                           selected: _filterSource == 'all',
-                          onTap: () => setState(() {
+                          onTap: () {
                             _filterSource = 'all';
-                            _applyFilter();
-                          }),
+                            _resetFiltersAndLoad();
+                          },
                         ),
                         _SourceChip(
                           label: 'Chưa ghi',
                           selected: _filterSource == '_none',
-                          onTap: () => setState(() {
+                          onTap: () {
                             _filterSource = '_none';
-                            _applyFilter();
-                          }),
+                            _resetFiltersAndLoad();
+                          },
                         ),
                         ...AppConstants.customerSources.map((s) => _SourceChip(
                               label: s['label']!,
                               selected: _filterSource == s['key'],
-                              onTap: () => setState(() {
+                              onTap: () {
                                 _filterSource = s['key']!;
-                                _applyFilter();
-                              }),
+                                _resetFiltersAndLoad();
+                              },
                             )),
                       ],
                     ),
@@ -320,13 +353,11 @@ class _AllCustomersScreenState extends State<AllCustomersScreen> {
               ),
             ),
           ),
-
-          // ── List content ────────────────────────────────────────
           if (_loading)
             const SliverFillRemaining(
               child: Center(child: CircularProgressIndicator()),
             )
-          else if (_filtered.isEmpty)
+          else if (_totalFiltered == 0)
             SliverFillRemaining(
               child: Padding(
                 padding: EdgeInsets.only(
@@ -352,22 +383,33 @@ class _AllCustomersScreenState extends State<AllCustomersScreen> {
                 ),
               ),
             )
-          else
+          else ...[
             SliverPadding(
-              padding: EdgeInsets.only(
-                top: 8,
-                bottom: 24 + MediaQuery.of(context).padding.bottom,
-              ),
+              padding: const EdgeInsets.only(top: 8),
               sliver: SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (ctx, i) => CustomerCard(
-                    customer: _filtered[i],
-                    onTap: () => _openDetail(_filtered[i]),
+                    customer: _customers[i],
+                    onTap: () => _openDetail(_customers[i]),
                   ),
-                  childCount: _filtered.length,
+                  childCount: _customers.length,
                 ),
               ),
             ),
+            SliverToBoxAdapter(
+              child: LoadMoreFooter(
+                hasMore: _hasMore,
+                loading: _loadingMore,
+                visible: _customers.length,
+                total: _totalFiltered,
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: 24 + MediaQuery.of(context).padding.bottom,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -422,9 +464,7 @@ class _FilterBar extends StatelessWidget {
                 color: isSelected ? statusColor : Colors.transparent,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isSelected
-                      ? statusColor
-                      : Colors.grey.shade300,
+                  color: isSelected ? statusColor : Colors.grey.shade300,
                 ),
               ),
               child: Row(

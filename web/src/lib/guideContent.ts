@@ -13,7 +13,7 @@ import {
   Bell,
 } from 'lucide-react';
 
-export const GUIDE_VERSION = '2.0';
+export const GUIDE_VERSION = '2.3';
 
 export interface GuideSection {
   icon: LucideIcon;
@@ -34,7 +34,7 @@ export const GUIDE_SECTIONS: GuideSection[] = [
 Mỗi sản phẩm có: tên, **giá vốn**, **giá bán mặc định**, **hoa hồng mặc định**, ghi chú nội bộ (tuỳ chọn).
 
 **Theo dõi tồn kho** (tuỳ chọn):
-• **Bật** — hàng vật lý: nhập tồn, ngưỡng cảnh báo. Ghi đơn tự trừ kho; Bảng điều khiển báo sắp hết / hết.
+• **Bật** — hàng vật lý: nhập tồn, ngưỡng cảnh báo. Ghi đơn tự trừ kho; **Hôm nay** báo sắp hết / hết trong việc cần làm.
 • **Tắt** — dịch vụ, đặt hộ, dropship… không quản số lượng.
 
 Danh mục liên kết khách ↔ đơn ↔ tiền ↔ kho (nếu bật).`,
@@ -85,21 +85,21 @@ Phần sản phẩm & tiền:
 
 **Cài đặt → Thông tin trên bill**: nhập tên shop & SĐT hiển thị trên PDF.
 
-Danh sách **Đơn hàng** có phân trang; mỗi đơn hiển thị doanh thu và trạng thái thanh toán.`,
+Danh sách **Đơn hàng** hiển thị doanh thu và trạng thái thanh toán. Trên **web**, dùng **Phân trang** (Trước/Sau) ở cuối danh sách; trên **app**, **cuộn xuống** để tải thêm.`,
   },
   {
     icon: Sparkles,
     iconColor: 'text-fuchsia-700 dark:text-fuchsia-400',
     iconBg: 'bg-fuchsia-100 dark:bg-fuchsia-950/50',
-    title: '5. Trợ lý Sale — Bảng điều khiển',
-    body: `**Bảng điều khiển** (Trang chủ) không chỉ liệt kê khách — có **Trợ lý Sale** gợi ý việc làm hôm nay:
+    title: '5. Trợ lý — Trang Hôm nay',
+    body: `**Hôm nay** (Trang chủ) là trợ lý kinh doanh cá nhân — không phải dashboard quản trị:
 
-• **Việc nên làm hôm nay** — ưu tiên nhắn khách, thu nợ, gửi ưu đãi, chăm khách cũ…
-• **Cảnh báo rủi ro** — khách nóng lâu chưa liên hệ, công nợ cao, bảo hành sắp hết
-• **Gợi ý doanh thu** — so sánh tuần/tháng, top SP, kênh bán tốt
-• **Thành tích** — streak liên hệ 🔥, mốc đơn / doanh thu
+• **Việc hôm nay** — ưu tiên nhắn khách, thu nợ, mời mua lại, nhập hàng sắp hết…
+• **Mục tiêu tháng** — tiến độ doanh thu cá nhân (đặt trong Cài đặt)
+• **Gợi ý hôm nay** — kết luận từ dữ liệu tháng, kèm việc nên làm
+• **Ai nợ tôi** — danh sách khách còn nợ, tap để thu
 
-Bấm từng gợi ý để nhảy thẳng tới khách hoặc màn hình liên quan. **Chi tiết khách** còn có panel **Thông minh khách** (tổng đơn, doanh thu, gợi ý hành động).`,
+Bấm từng việc để nhảy thẳng tới khách hoặc màn hình liên quan. **Chi tiết khách** có panel trí nhớ (tổng đơn, doanh thu, gợi ý).`,
   },
   {
     icon: Link2,
@@ -110,8 +110,8 @@ Bấm từng gợi ý để nhảy thẳng tới khách hoặc màn hình liên 
 
 **Khách** → nguồn + SP quan tâm + địa chỉ mặc định
 **Đơn hàng** → khách + SP + snapshot giao hàng + doanh thu / lời / HH / công nợ
-**Dashboard & Trợ lý Sale** → tính từ đơn và lịch sử liên hệ thực
-**Thống kê** → doanh thu theo SP và **nguồn khách**
+**Hôm nay & Trợ lý** → tính từ đơn và lịch sử liên hệ thực
+**Tiền của tôi** → doanh thu theo SP và **nguồn khách**
 
 Xoá khách sẽ xoá luôn đơn và lịch sử liên hệ — cẩn thận trước khi xoá.`,
   },
@@ -120,7 +120,7 @@ Xoá khách sẽ xoá luôn đơn và lịch sử liên hệ — cẩn thận tr
     iconColor: 'text-sky-700 dark:text-sky-400',
     iconBg: 'bg-sky-100 dark:bg-sky-950/50',
     title: '7. Chăm khách & nhắc lịch',
-    body: `**Bảng điều khiển** hiển thị khách cần liên hệ ngay và sắp tới.
+    body: `**Hôm nay** hiển thị khách cần liên hệ (trong mục Sổ khách hôm nay — mở rộng khi cần).
 
 🔵 **Mới** — nhắc sau 1 ngày
 🟠 **Tiềm năng** — nhắc sau 2 ngày
@@ -140,7 +140,7 @@ Bấm **Đã nhắn** để ghi nhận liên hệ (reset đồng hồ nhắc). T
 • Top SP bán chạy (theo doanh thu đơn)
 • **Doanh thu theo nguồn khách** — biết kênh nào mang tiền
 
-**Khách hàng**: lọc theo trạng thái và nguồn; tìm theo tên, SĐT, địa chỉ, SP.
+**Khách hàng**: lọc theo trạng thái và nguồn; tìm theo tên, SĐT, địa chỉ, SP. Danh sách dài: **web** phân trang, **app** cuộn tải thêm.
 **Chi tiết khách**: tất cả đơn + tổng doanh thu / lời / HH / nợ + thông minh khách.`,
   },
   {
@@ -170,5 +170,18 @@ Nên backup ít nhất 1 lần/tuần.`,
 • **Tri ân & ưu đãi** (Thứ Sáu) — khách tiềm năng lâu chưa chăm, khách cũ nên gửi quà
 
 **Web**: nhắc khi tab Salenote đang mở (hoặc PWA đã cài). **App mobile**: nhắc nền cả khi đóng app.`,
+  },
+  {
+    icon: Receipt,
+    iconColor: 'text-slate-700 dark:text-slate-400',
+    iconBg: 'bg-slate-100 dark:bg-slate-950/50',
+    title: '11. Danh sách dài (web & app)',
+    body: `Salenote không tải hết hàng nghìn dòng một lúc — chỉ hiển thị **20 mục đầu**, rồi tải thêm khi bạn cần xem tiếp.
+
+**App mobile** — Sổ khách, Sản phẩm, Đơn hàng, Ai nợ tôi, sổ hôm nay trên **Hôm nay**, form chọn khách/SP: **cuộn xuống cuối** để tự tải thêm. Cuối danh sách có dòng *Cuộn để xem thêm (x/y)* hoặc *Đã hiển thị tất cả*. Không cần bấm nút chuyển trang.
+
+**Web** — Trang danh sách đầy đủ (Sổ khách, Sản phẩm, Đơn hàng, Công nợ, Hôm nay): dùng **Phân trang** Trước/Sau ở cuối trang. **Popup** chọn khách hoặc sản phẩm: cuộn tải thêm giống app.
+
+Nếu danh sách ngắn hơn màn hình mà vẫn còn dữ liệu, app tự tải thêm cho đủ cuộn — bạn luôn xem được toàn bộ sổ.`,
   },
 ];

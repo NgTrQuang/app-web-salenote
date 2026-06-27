@@ -8,8 +8,9 @@ import { PageHeader, Panel, EmptyState, LoadingSpinner, PrimaryButton } from '@/
 import { Pagination } from '@/components/Pagination';
 import { OrderPaymentDialog } from '@/components/OrderPaymentDialog';
 import { countOrders, getOrdersPaged } from '@/lib/orderService';
-import { getAllCustomers } from '@/lib/customerService';
+import { getCustomersByIds } from '@/lib/customerService';
 import { formatMoney } from '@/lib/money';
+import { NAV_HOME_LABEL } from '@/lib/constants';
 import { useDataRefresh } from '@/hooks/useDataRefresh';
 
 const PAGE_SIZE = 20;
@@ -27,14 +28,15 @@ export function OrdersPage() {
 
   useEffect(() => {
     setLoading(true);
-    Promise.all([getOrdersPaged(page, PAGE_SIZE), countOrders(), getAllCustomers()]).then(
-      ([ords, count, customers]) => {
+    Promise.all([getOrdersPaged(page, PAGE_SIZE), countOrders()])
+      .then(async ([ords, count]) => {
         setOrders(ords);
         setTotal(count);
+        const ids = [...new Set(ords.map((o) => o.customer_id))];
+        const customers = await getCustomersByIds(ids);
         setCustomerMap(new Map(customers.map((c) => [c.id!, c])));
-        setLoading(false);
-      },
-    );
+      })
+      .finally(() => setLoading(false));
   }, [refresh, page, reloadNonce]);
 
   function handleSaved() {
@@ -46,7 +48,7 @@ export function OrdersPage() {
 
   return (
     <div>
-      <Breadcrumbs items={[{ label: 'Bảng điều khiển', to: '/' }, { label: 'Đơn hàng' }]} />
+      <Breadcrumbs items={[{ label: NAV_HOME_LABEL, to: '/' }, { label: 'Đơn hàng' }]} />
 
       <PageHeader
         title="Đơn hàng"

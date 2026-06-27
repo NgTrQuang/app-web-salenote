@@ -24,7 +24,7 @@ class DatabaseHelper {
     final path = join(dbPath, 'so_khach.db');
     return await openDatabase(
       path,
-      version: 6,
+      version: 7,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -85,6 +85,17 @@ class DatabaseHelper {
           shipping_phone = (SELECT phone FROM customers WHERE customers.id = orders.customer_id),
           shipping_address = (SELECT address FROM customers WHERE customers.id = orders.customer_id)
         WHERE shipping_name IS NULL
+      ''');
+    }
+    if (oldVersion < 7) {
+      await db.execute('''
+        CREATE TABLE expenses (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          category TEXT NOT NULL,
+          amount REAL NOT NULL,
+          note TEXT,
+          created_at INTEGER NOT NULL
+        )
       ''');
     }
   }
@@ -153,6 +164,15 @@ class DatabaseHelper {
       CREATE TABLE settings (
         key TEXT PRIMARY KEY,
         value TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE expenses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        category TEXT NOT NULL,
+        amount REAL NOT NULL,
+        note TEXT,
+        created_at INTEGER NOT NULL
       )
     ''');
   }
@@ -249,6 +269,112 @@ class DatabaseHelper {
     return rows.map(Customer.fromMap).toList();
   }
 
+  /// Bộ lọc + phân trang Sổ khách (tương đương web getCustomersPaged).
+  Future<List<Customer>> getCustomersPaged({
+    required int page,
+    required int pageSize,
+    String query = '',
+    String status = 'all',
+    String source = 'all',
+    String orderBy = 'next_action_at ASC',
+  }) async {
+    final db = await database;
+    final (where, args) = _customerWhereClause(query: query, status: status, source: source);
+    final offset = (page - 1) * pageSize;
+    final rows = await db.query(
+      'customers',
+      where: where.isEmpty ? null : where,
+      whereArgs: args.isEmpty ? null : args,
+      orderBy: orderBy,
+      limit: pageSize,
+      offset: offset,
+    );
+    return rows.map(Customer.fromMap).toList();
+  }
+
+  Future<int> countCustomers({
+    String query = '',
+    String status = 'all',
+    String source = 'all',
+  }) async {
+    final db = await database;
+    final (where, args) = _customerWhereClause(query: query, status: status, source: source);
+    if (where.isEmpty) {
+      final r = await db.rawQuery('SELECT COUNT(*) as c FROM customers');
+      return (r.first['c'] as int?) ?? 0;
+    }
+    final r = await db.rawQuery(
+      'SELECT COUNT(*) as c FROM customers WHERE $where',
+      args,
+    );
+    return (r.first['c'] as int?) ?? 0;
+  }
+
+  Future<int> countAllCustomers() async {
+    final db = await database;
+    final r = await db.rawQuery('SELECT COUNT(*) as c FROM customers');
+    return (r.first['c'] as int?) ?? 0;
+  }
+
+  Future<Map<String, int>> getCustomerStatusCounts() async {
+    final db = await database;
+    final rows = await db.rawQuery(
+      'SELECT status, COUNT(*) as c FROM customers GROUP BY status',
+    );
+    final counts = <String, int>{'all': 0};
+    for (final row in rows) {
+      final status = row['status'] as String? ?? 'new';
+      final c = (row['c'] as int?) ?? 0;
+      counts[status] = c;
+      counts['all'] = (counts['all'] ?? 0) + c;
+    }
+    if (counts['all'] == 0) {
+      counts['all'] = await countAllCustomers();
+    }
+    return counts;
+  }
+
+  Future<List<Customer>> getCustomersByIds(List<int> ids) async {
+    if (ids.isEmpty) return [];
+    final unique = ids.toSet().where((id) => id > 0).toList();
+    if (unique.isEmpty) return [];
+    final db = await database;
+    final placeholders = List.filled(unique.length, '?').join(',');
+    final rows = await db.rawQuery(
+      'SELECT * FROM customers WHERE id IN ($placeholders)',
+      unique,
+    );
+    return rows.map(Customer.fromMap).toList();
+  }
+
+  (String, List<Object?>) _customerWhereClause({
+    required String query,
+    required String status,
+    required String source,
+  }) {
+    final parts = <String>[];
+    final args = <Object?>[];
+
+    if (status != 'all') {
+      parts.add('status = ?');
+      args.add(status);
+    }
+    if (source == '_none') {
+      parts.add("(source IS NULL OR source = '')");
+    } else if (source != 'all') {
+      parts.add('source = ?');
+      args.add(source);
+    }
+    final q = query.trim().toLowerCase();
+    if (q.isNotEmpty) {
+      parts.add(
+        '(LOWER(name) LIKE ? OR phone LIKE ? OR LOWER(COALESCE(product, "")) LIKE ? OR LOWER(COALESCE(address, "")) LIKE ?)',
+      );
+      args.addAll(['%$q%', '%${query.trim()}%', '%$q%', '%$q%']);
+    }
+    return (parts.join(' AND '), args);
+  }
+
   Future<int> getOverdueCount() async {
     final db = await database;
     final cutoff = DateTime.now()
@@ -287,6 +413,32 @@ class DatabaseHelper {
     return rows.map(Interaction.fromMap).toList();
   }
 
+  Future<List<Interaction>> getInteractionsPaged(
+    int customerId, {
+    required int limit,
+    required int offset,
+  }) async {
+    final db = await database;
+    final rows = await db.query(
+      'interactions',
+      where: 'customer_id = ?',
+      whereArgs: [customerId],
+      orderBy: 'created_at DESC',
+      limit: limit,
+      offset: offset,
+    );
+    return rows.map(Interaction.fromMap).toList();
+  }
+
+  Future<int> countInteractions(int customerId) async {
+    final db = await database;
+    final r = await db.rawQuery(
+      'SELECT COUNT(*) as c FROM interactions WHERE customer_id = ?',
+      [customerId],
+    );
+    return (r.first['c'] as int?) ?? 0;
+  }
+
   // ── Products ───────────────────────────────────────────────
 
   Future<int> insertProduct(Product p) async {
@@ -311,6 +463,35 @@ class DatabaseHelper {
     var list = rows.map(Product.fromMap).toList();
     if (activeOnly) list = list.where((p) => p.active).toList();
     return list;
+  }
+
+  Future<int> countProducts({bool activeOnly = false}) async {
+    final db = await database;
+    if (!activeOnly) {
+      final r = await db.rawQuery('SELECT COUNT(*) as c FROM products');
+      return (r.first['c'] as int?) ?? 0;
+    }
+    final r = await db.rawQuery(
+      'SELECT COUNT(*) as c FROM products WHERE active = 1',
+    );
+    return (r.first['c'] as int?) ?? 0;
+  }
+
+  Future<List<Product>> getProductsPaged({
+    required int page,
+    required int pageSize,
+    bool activeOnly = false,
+  }) async {
+    final db = await database;
+    final offset = (page - 1) * pageSize;
+    final rows = await db.query(
+      'products',
+      where: activeOnly ? 'active = 1' : null,
+      orderBy: 'name ASC',
+      limit: pageSize,
+      offset: offset,
+    );
+    return rows.map(Product.fromMap).toList();
   }
 
   Future<Product?> getProduct(int id) async {
@@ -480,7 +661,7 @@ class DatabaseHelper {
     );
   }
 
-  // ── Backup / Restore (Salenote JSON v2 — tương thích web) ──
+  // ── Backup / Restore (Salenote JSON v3 — tương thích web) ──
 
   Future<Map<String, dynamic>> exportAll() async {
     final db = await database;
@@ -488,6 +669,7 @@ class DatabaseHelper {
     final interactions = await db.query('interactions');
     final productRows = await db.query('products');
     final orderRows = await db.query('orders');
+    final expenseRows = await db.query('expenses');
 
     return {
       'version': backupVersion,
@@ -495,6 +677,7 @@ class DatabaseHelper {
       'interactions': interactions,
       'products': productRows.map(_productRowForJson).toList(),
       'orders': orderRows,
+      'expenses': expenseRows,
     };
   }
 
@@ -513,8 +696,11 @@ class DatabaseHelper {
         List<Map<String, dynamic>>.from(data['products'] as List? ?? []);
     final orders =
         List<Map<String, dynamic>>.from(data['orders'] as List? ?? []);
+    final expenses =
+        List<Map<String, dynamic>>.from(data['expenses'] as List? ?? []);
 
     await db.transaction((txn) async {
+      await txn.delete('expenses');
       await txn.delete('orders');
       await txn.delete('products');
       await txn.delete('interactions');
@@ -532,6 +718,9 @@ class DatabaseHelper {
       }
       for (final o in orders) {
         await txn.insert('orders', Map<String, dynamic>.from(o));
+      }
+      for (final e in expenses) {
+        await txn.insert('expenses', Map<String, dynamic>.from(e));
       }
     });
   }

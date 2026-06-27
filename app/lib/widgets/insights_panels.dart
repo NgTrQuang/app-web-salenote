@@ -3,11 +3,19 @@ import '../services/insights_service.dart';
 import '../utils/money.dart';
 import '../services/customer_service.dart';
 import '../screens/customer_detail_screen.dart';
+import '../screens/products_screen.dart';
+import '../services/segment_service.dart';
+import 'segment_action_sheet.dart';
 
 class DailyActionCenter extends StatelessWidget {
   final List<DailyAction> actions;
+  final void Function(int productId)? onSegmentAction;
 
-  const DailyActionCenter({super.key, required this.actions});
+  const DailyActionCenter({
+    super.key,
+    required this.actions,
+    this.onSegmentAction,
+  });
 
   IconData _icon(ActionType t) {
     switch (t) {
@@ -19,6 +27,12 @@ class DailyActionCenter extends StatelessWidget {
         return Icons.payments_outlined;
       case ActionType.reEngage:
         return Icons.replay;
+      case ActionType.restock:
+        return Icons.inventory_2_outlined;
+      case ActionType.restockUrgent:
+        return Icons.error_outline;
+      case ActionType.reEngageProduct:
+        return Icons.campaign_outlined;
     }
   }
 
@@ -32,6 +46,41 @@ class DailyActionCenter extends StatelessWidget {
         return Colors.teal;
       case ActionType.reEngage:
         return Colors.deepPurple;
+      case ActionType.restock:
+        return Colors.amber.shade800;
+      case ActionType.restockUrgent:
+        return Colors.red.shade700;
+      case ActionType.reEngageProduct:
+        return Colors.indigo;
+    }
+  }
+
+  Future<void> _onTap(BuildContext context, DailyAction a) async {
+    if (a.type == ActionType.reEngageProduct && a.productId != null) {
+      if (onSegmentAction != null) {
+        onSegmentAction!(a.productId!);
+        return;
+      }
+      final seg = await SegmentService().getProductSegment(a.productId!);
+      if (seg != null && context.mounted) {
+        await SegmentActionSheet.show(context, seg);
+      }
+      return;
+    }
+    if (a.type == ActionType.restock || a.type == ActionType.restockUrgent) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const ProductsScreen()),
+      );
+      return;
+    }
+    if (a.customerId == null) return;
+    final c = await CustomerService().getCustomer(a.customerId!);
+    if (c != null && context.mounted) {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => CustomerDetailScreen(customer: c),
+        ),
+      );
     }
   }
 
@@ -75,16 +124,7 @@ class DailyActionCenter extends StatelessWidget {
                       style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                   subtitle: Text(a.subtitle, maxLines: 2, overflow: TextOverflow.ellipsis),
                   trailing: const Icon(Icons.chevron_right, size: 20),
-                  onTap: () async {
-                    final c = await CustomerService().getCustomer(a.customerId);
-                    if (c != null && context.mounted) {
-                      await Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => CustomerDetailScreen(customer: c),
-                        ),
-                      );
-                    }
-                  },
+                  onTap: () => _onTap(context, a),
                 );
               }),
           ],
@@ -262,8 +302,13 @@ class AchievementBanner extends StatelessWidget {
 
 class RevenueInsightPanel extends StatelessWidget {
   final List<RevenueInsight> insights;
+  final void Function(RevenueInsightRoute route)? onAction;
 
-  const RevenueInsightPanel({super.key, required this.insights});
+  const RevenueInsightPanel({
+    super.key,
+    required this.insights,
+    this.onAction,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -278,14 +323,36 @@ class RevenueInsightPanel extends StatelessWidget {
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
             const SizedBox(height: 8),
             ...insights.map((i) => Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Row(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.lightbulb_outline,
-                          size: 16, color: Colors.amber.shade700),
-                      const SizedBox(width: 8),
-                      Expanded(child: Text(i.text, style: const TextStyle(fontSize: 13))),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(Icons.lightbulb_outline,
+                              size: 16, color: Colors.amber.shade700),
+                          const SizedBox(width: 8),
+                          Expanded(
+                              child: Text(i.text,
+                                  style: const TextStyle(fontSize: 13))),
+                        ],
+                      ),
+                      if (i.actionText != null && i.actionRoute != null)
+                        Padding(
+                          padding: const EdgeInsets.only(left: 24, top: 2),
+                          child: TextButton(
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            onPressed: onAction == null
+                                ? null
+                                : () => onAction!(i.actionRoute!),
+                            child: Text(i.actionText!),
+                          ),
+                        ),
                     ],
                   ),
                 )),

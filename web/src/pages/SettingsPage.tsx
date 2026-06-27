@@ -60,7 +60,9 @@ import { getSetting } from '@/lib/db';
 
 import { getShopSettings, saveShopSettings } from '@/lib/shopSettings';
 
-import { APP_NAME, APP_TAGLINE, DEFAULT_MESSAGE, SETTING_KEYS } from '@/lib/constants';
+import { APP_NAME, APP_TAGLINE, DEFAULT_MESSAGE, SETTING_KEYS, NAV_HOME_LABEL } from '@/lib/constants';
+import { getMonthlyGoal, setMonthlyGoal } from '@/lib/goalService';
+import { formatMoneyInput, parseMoneyInput } from '@/lib/money';
 
 import {
 
@@ -113,6 +115,7 @@ export function SettingsPage() {
   const [notif, setNotif] = useState<NotificationSettings | null>(null);
   const [shopName, setShopName] = useState(APP_NAME);
   const [shopPhone, setShopPhone] = useState('');
+  const [monthlyGoalInput, setMonthlyGoalInput] = useState('');
   const [perm, setPerm] = useState<NotificationPermission>('default');
   const notifLoadGen = useRef(0);
 
@@ -127,6 +130,10 @@ export function SettingsPage() {
     getShopSettings().then((s) => {
       setShopName(s.shopName);
       setShopPhone(s.shopPhone);
+    });
+
+    getMonthlyGoal().then((g) => {
+      setMonthlyGoalInput(g ? formatMoneyInput(g) : '');
     });
 
     void loadNotif();
@@ -189,6 +196,13 @@ export function SettingsPage() {
   async function handleSaveShop() {
     await saveShopSettings({ shopName, shopPhone });
     showToast('Đã lưu thông tin cửa hàng trên bill');
+  }
+
+  async function handleSaveGoal() {
+    const amount = parseMoneyInput(monthlyGoalInput);
+    await setMonthlyGoal(amount);
+    setMonthlyGoalInput(amount > 0 ? formatMoneyInput(amount) : '');
+    showToast(amount > 0 ? 'Đã lưu mục tiêu tháng' : 'Đã xóa mục tiêu tháng');
   }
 
 
@@ -375,7 +389,7 @@ export function SettingsPage() {
 
     <div>
 
-      <Breadcrumbs items={[{ label: 'Bảng điều khiển', to: '/' }, { label: 'Cài đặt' }]} />
+      <Breadcrumbs items={[{ label: NAV_HOME_LABEL, to: '/' }, { label: 'Cài đặt' }]} />
 
       <PageHeader title="Cài đặt" subtitle="Tuỳ chỉnh ứng dụng và quản lý dữ liệu" />
 
@@ -474,6 +488,52 @@ export function SettingsPage() {
           <PrimaryButton type="button" className="mt-4" onClick={() => void handleSaveShop()}>
 
             Lưu thông tin bill
+
+          </PrimaryButton>
+
+        </Panel>
+
+
+
+        <Panel title="Mục tiêu tháng này">
+
+          <p className="mb-4 text-sm text-slate-500">
+
+            Đặt mục tiêu doanh thu cá nhân — trợ lý sẽ gợi ý còn bao xa và cần thêm bao nhiêu đơn.
+
+          </p>
+
+          <div>
+
+            <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+
+              Mục tiêu doanh thu (VND)
+
+            </label>
+
+            <input
+
+              type="text"
+
+              inputMode="numeric"
+
+              value={monthlyGoalInput}
+
+              onChange={(e) => setMonthlyGoalInput(e.target.value)}
+
+              className="w-full max-w-xs rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900"
+
+              placeholder="50.000.000"
+
+            />
+
+            <p className="mt-2 text-xs text-slate-500">Để trống hoặc 0 để tắt mục tiêu.</p>
+
+          </div>
+
+          <PrimaryButton type="button" className="mt-4" onClick={() => void handleSaveGoal()}>
+
+            Lưu mục tiêu
 
           </PrimaryButton>
 
